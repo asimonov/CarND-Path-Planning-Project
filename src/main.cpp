@@ -88,9 +88,11 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Car c(car_x, car_y, car_yaw, car_speed, prev_tr);
         //CircularLinePlanner p;
         //Trajectory tr = p.getTrajectory(c);
-        Trajectory tr = route.get_next_segments(c, 150);
-        double dt = 0.02;
-        if (prev_tr.getX().size() < 2./dt) {
+        Trajectory tr = route.get_next_segments(c, 15);
+
+        double dt_s = 0.02;
+        double time_horizon_s = 2.0;
+        if (prev_tr.getX().size() < time_horizon_s/dt_s) {
           Trajectory tr_d;
           for (int i=0; i<tr.getX().size(); i++) {
             auto fr = route.get_frenet(tr.getX()[i], tr.getY()[i], c.getYaw());
@@ -98,7 +100,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
             auto xy = route.get_XY(fr[0], fr[1]);
             tr_d.add(xy[0], xy[1]);
           }
-          tr_d.respace_at_constant_speed(dt, mph2ms(45.0));
+          tr_d.respace_at_constant_speed(dt_s, mph2ms(45.0));
           tr = tr_d;
         }
         else

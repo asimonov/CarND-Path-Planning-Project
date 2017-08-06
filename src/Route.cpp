@@ -117,9 +117,6 @@ void Route::smooth_using_splines()
       new_waypoints_y.push_back(xy[1]);
     }
   }
-  // add original last waypoint as it was not covered
-  new_waypoints_x.push_back(_waypoints_x[_waypoints_x.size()-1]);
-  new_waypoints_y.push_back(_waypoints_y[_waypoints_y.size()-1]);
 
   // replace waypoints with smoothed waypoints
   _waypoints_x = new_waypoints_x;
@@ -138,6 +135,32 @@ void Route::smooth_using_splines()
   _waypoints_s = new_s;
   //_waypoints_d = new_d;
   assert(_waypoints_s.size() == _waypoints_x.size());
+
+  /* debug code for strange behaviour
+   *
+  auto fr = get_frenet(773, 1135, 352);
+  auto xy = get_XY(fr[0],fr[1]);
+  auto fr2 = get_frenet(778, 1135, 352);
+  auto xy2 = get_XY(fr2[0],fr2[1]);
+  auto fr3 = get_frenet(780, 1135, 352);
+  auto xy3 = get_XY(fr3[0],fr3[1]);
+  auto fr4 = get_frenet(785, 1135, 352);
+  auto xy4 = get_XY(fr4[0],fr4[1]);
+  auto fr4_ = get_frenet(784.6, 1135.57, 352);
+  auto xy4_ = get_XY(fr4_[0],fr4_[1]);
+  auto xy4_2 = get_XY(fr4_[0],fr4_[1]+2.0);
+  Trajectory tr = get_next_segments(Car(741.16,1135.88,352,0,Trajectory()), 15);
+  Trajectory tr_d;
+  for (int i=0; i<tr.getX().size(); i++) {
+    auto fr = get_frenet(tr.getX()[i], tr.getY()[i], 352);
+    fr[1] += 2.0; // be in middle of left lane
+    auto xy = get_XY(fr[0], fr[1]);
+    tr_d.add(xy[0], xy[1]);
+  }
+  //tr_d.respace_at_constant_speed(dt_s, mph2ms(45.0));
+
+  int d = 0;
+   */
 }
 
 
@@ -149,6 +172,7 @@ Trajectory Route::get_next_segments(const Car& c, int n)
   Trajectory tr;
 
   long next_wp = next_waypoint(c.getX(), c.getY(), c.getYaw());
+  next_wp = cyclic_index(next_wp-1);
 
   for (int i=0; i<n; i++)
   {
@@ -201,9 +225,6 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp)
 {
   int prev_wp;
   prev_wp = cyclic_index(next_wp - 1);
-  //if (next_wp == 0) {
-  //  prev_wp = _waypoints_x.size() - 1;
-  //}
 
   double n_x = _waypoints_x[next_wp] - _waypoints_x[prev_wp];
   double n_y = _waypoints_y[next_wp] - _waypoints_y[prev_wp];
@@ -252,11 +273,12 @@ std::vector<double> Route::get_XY(double s, double d)
 {
   int prev_wp = -1;
 
-  while (s > _waypoints_s[prev_wp + 1] && (prev_wp < (int) (_waypoints_s.size() - 1))) {
+  while (s >= _waypoints_s[prev_wp + 1] && (prev_wp < (int) (_waypoints_s.size() - 1))) {
     prev_wp++;
   }
 
   int wp2 = cyclic_index(prev_wp + 1);
+  prev_wp = cyclic_index(prev_wp); // to fix bug when s=0 for example
 
   double heading = atan2((_waypoints_y[wp2] - _waypoints_y[prev_wp]), (_waypoints_x[wp2] - _waypoints_x[prev_wp]));
   // the x,y,s along the segment
