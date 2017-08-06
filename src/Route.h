@@ -18,7 +18,7 @@ public:
 
     void read_data(std::string map_file);
 
-    Trajectory get_next_segments(const Car& c, int n);
+    Trajectory get_next_segments(double x, double y, double yaw, int n);
 
     // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
     std::vector<double> get_frenet(double x, double y, double yaw);

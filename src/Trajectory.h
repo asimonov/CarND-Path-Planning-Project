@@ -7,6 +7,8 @@
 
 #include <vector>
 
+// this is simplified trajectory class that does NOT know about time.
+// it simply tracks x,y coordinates
 class Trajectory {
 public:
     Trajectory();

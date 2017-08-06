@@ -84,27 +84,98 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
              << endl;
 
         // plan trajectory
-        Trajectory prev_tr(previous_path_x, previous_path_y);
-        Car c(car_x, car_y, car_yaw, car_speed, prev_tr);
-        //CircularLinePlanner p;
-        //Trajectory tr = p.getTrajectory(c);
-        Trajectory tr = route.get_next_segments(c, 15);
+        double dt_s = 0.02; // discretisation time length, in seconds
+        double time_horizon_s = 2.0; // planning time horizon, in seconds
+        double target_speed_ms = mph2ms(47.0); // target speed in meter/second
+        double max_acceleration = 10.0; // maximum acceleration, in m/s2
+        double max_jerk = 10.0; // maximum jerk, in m/s3
+        int planned_n = previous_path_x.size();
+        Trajectory tr; // final trajectory
 
-        double dt_s = 0.02;
-        double time_horizon_s = 2.0;
-        if (prev_tr.getX().size() < time_horizon_s/dt_s) {
-          Trajectory tr_d;
-          for (int i=0; i<tr.getX().size(); i++) {
-            auto fr = route.get_frenet(tr.getX()[i], tr.getY()[i], c.getYaw());
+        if (planned_n == 0)
+        {
+          // there is no previous path. use current car state to start planning from scratch
+          Car c(car_x, car_y, car_yaw, car_speed, Trajectory());
+
+          Trajectory tr_left_lane_frenet;
+
+          auto fr = route.get_frenet(c.getX(), c.getY(), c.getYaw());
+          fr[1] += 2.0; // be in middle of left lane
+          tr_left_lane_frenet.add(fr[0], fr[1]);
+          double s_prev = fr[0];
+          double s_prev_dot = 0;
+          double s_prev_ddot = 0;
+          double d_prev = fr[1];
+          double d_prev_dot = 0;
+          double d_prev_ddot = 0;
+          double t_total = 0;
+
+          Trajectory waypoints = route.get_next_segments(c.getX(), c.getY(), c.getYaw(), 15);
+          int n_wp = waypoints.getX().size();
+          for (int i=0; i<n_wp; i++) {
+            fr = route.get_frenet(waypoints.getX()[i], waypoints.getY()[i], c.getYaw());
             fr[1] += 2.0; // be in middle of left lane
-            auto xy = route.get_XY(fr[0], fr[1]);
-            tr_d.add(xy[0], xy[1]);
+            double s_new = fr[0];
+            double d_new = fr[1];
+
+            double s_dist = s_new - s_prev;
+            assert(s_dist>0);
+            double delta_v = target_speed_ms - s_prev_dot;
+            double used_acceleration = max_acceleration/2.0;
+            double T = abs(delta_v) / used_acceleration; // time horizon over which we can get to desired speed
+//            if (T>time_horizon_s) {
+//              T = time_horizon_s;
+//            }
+            double s_new_dot = s_prev_dot + T*used_acceleration;
+            double s_new_ddot = 0.0;
+            JerkMinimizingPolynomial jmt_s({s_prev, s_prev_dot, s_prev_ddot}, {s_new, s_new_dot, s_new_ddot}, T);
+
+            int n_steps = T/dt_s;
+            for (int j=0;j<n_steps; j++)
+            {
+              double s = jmt_s.eval(j*dt_s);
+              tr_left_lane_frenet.add(s, d_new);
+            }
+
+            s_prev = s_new;
+            s_prev_dot = s_new_dot;
+            s_prev_ddot = s_new_ddot;
+            d_prev = d_new;
+            d_prev_dot = 0;
+            d_prev_ddot = 0;
+            t_total += T;
+            if (t_total > time_horizon_s)
+              break;
           }
-          tr_d.respace_at_constant_speed(dt_s, mph2ms(45.0));
-          tr = tr_d;
-        }
-        else
+
+          n_wp = tr_left_lane_frenet.getX().size();
+          for (int i=0; i<n_wp; i++) {
+            auto xy = route.get_XY(tr_left_lane_frenet.getX()[i], tr_left_lane_frenet.getY()[i]);
+            tr.add(xy[0],xy[1]);
+          }
+        } else
+        {
+          // there is already trajectory that car follows. lets plan from its end
+          Trajectory prev_tr(previous_path_x, previous_path_y);
+          Car c(car_x, car_y, car_yaw, car_speed, prev_tr);
           tr = prev_tr;
+        }
+
+//        Trajectory tr = route.get_next_segments(c., 15);
+//
+//        if (planned_n < time_horizon_s/dt_s) {
+//          Trajectory tr_d;
+//          for (int i=0; i<tr.getX().size(); i++) {
+//            auto fr = route.get_frenet(tr.getX()[i], tr.getY()[i], c.getYaw());
+//            fr[1] += 2.0; // be in middle of left lane
+//            auto xy = route.get_XY(fr[0], fr[1]);
+//            tr_d.add(xy[0], xy[1]);
+//          }
+//          tr_d.respace_at_constant_speed(dt_s, target_speed_ms);
+//          tr = tr_d;
+//        }
+//        else
+//          tr = prev_tr;
 
         // send control message back to the simulator
         json msgJson;

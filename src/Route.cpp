@@ -167,12 +167,12 @@ void Route::smooth_using_splines()
 
 // find next n waypoints to follow
 // given car position
-Trajectory Route::get_next_segments(const Car& c, int n)
+Trajectory Route::get_next_segments(double x, double y, double yaw, int n)
 {
   Trajectory tr;
 
-  long next_wp = next_waypoint(c.getX(), c.getY(), c.getYaw());
-  next_wp = cyclic_index(next_wp-1);
+  long next_wp = next_waypoint(x, y, yaw);
+  //next_wp = cyclic_index(next_wp-1);
 
   for (int i=0; i<n; i++)
   {

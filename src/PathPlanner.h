@@ -7,6 +7,8 @@
 
 #include "Trajectory.h"
 #include "Car.h"
+#include "JerkMinimizingPolynomial.h"
+
 
 class PathPlanner {
 public:
@@ -23,6 +25,14 @@ private:
 };
 
 class CircularLinePlanner : public PathPlanner
+{
+public:
+    virtual Trajectory getTrajectory(const Car& c);
+
+private:
+};
+
+class JMTPlanner : public PathPlanner
 {
 public:
     virtual Trajectory getTrajectory(const Car& c);
