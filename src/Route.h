@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+#include "Trajectory.h"
+#include "Car.h"
+
 class Route {
 public:
     Route();
@@ -15,14 +18,30 @@ public:
 
     void read_data(std::string map_file);
 
+    Trajectory get_next_segments(const Car& c, int n);
+
+    // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
+    std::vector<double> get_frenet(double x, double y, double yaw);
+
+    // Transform from Frenet s,d coordinates to Cartesian x,y
+    std::vector<double> get_XY(double s, double d);
+
 private:
     // route waypoint's x,y,s and d normalized normal vectors
-    std::vector<double> map_waypoints_x;
-    std::vector<double> map_waypoints_y;
-    std::vector<double> map_waypoints_s;
-    std::vector<double> map_waypoints_dx;
-    std::vector<double> map_waypoints_dy;
+    std::vector<double> _waypoints_x;
+    std::vector<double> _waypoints_y;
+    std::vector<double> _waypoints_s;
+    //std::vector<double> _waypoints_dx;
+    //std::vector<double> _waypoints_dy;
 
+    int closest_waypoint(double x, double y);
+    int next_waypoint(double x, double y, double yaw);
+
+    // internal version of get_frenet that is also used to re-generate s,d from 'splined' x,y
+    std::vector<double> get_frenet2(double x, double y, int next_wp);
+
+    void smooth_using_splines();
+    int cyclic_index(int i) const;
 };
 
 

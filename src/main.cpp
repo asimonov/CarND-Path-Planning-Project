@@ -6,8 +6,8 @@
 
 #include "json.hpp"
 
-#include "coordinate_utils.h"
 #include "log_utils.h"
+#include "coordinate_utils.h"
 
 #include "Route.h"
 #include "Car.h"
@@ -67,15 +67,42 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];
+        //["sensor_fusion"] A 2d vector of cars and then that car's
+        // [car's unique ID,
+        //  car's x position in map coordinates,
+        //  car's y position in map coordinates,
+        //  car's x velocity in m/s,
+        //  car's y velocity in m/s,
+        //  car's s position in frenet coordinates,
+        //  car's d position in frenet coordinates.]
 
         // log event
-        cout << ts_ms_str() << "IN s="<<car_s<<" d="<<car_d<< " yaw="<<car_yaw <<" v="<<car_speed << endl;
+        cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
+             <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
+             <<" s="<<car_s<<" d="<<car_d
+             <<" yaw="<<car_yaw <<" v="<<car_speed
+             << endl;
 
         // plan trajectory
         Trajectory prev_tr(previous_path_x, previous_path_y);
         Car c(car_x, car_y, car_yaw, car_speed, prev_tr);
-        CircularLinePlanner p;
-        Trajectory tr = p.getTrajectory(c);
+        //CircularLinePlanner p;
+        //Trajectory tr = p.getTrajectory(c);
+        Trajectory tr = route.get_next_segments(c, 150);
+        double dt = 0.02;
+        if (prev_tr.getX().size() < 2./dt) {
+          Trajectory tr_d;
+          for (int i=0; i<tr.getX().size(); i++) {
+            auto fr = route.get_frenet(tr.getX()[i], tr.getY()[i], c.getYaw());
+            fr[1] += 2.0; // be in middle of left lane
+            auto xy = route.get_XY(fr[0], fr[1]);
+            tr_d.add(xy[0], xy[1]);
+          }
+          tr_d.respace_at_constant_speed(dt, mph2ms(45.0));
+          tr = tr_d;
+        }
+        else
+          tr = prev_tr;
 
         // send control message back to the simulator
         json msgJson;
@@ -86,7 +113,11 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // sleep for 100 ms, to match real cars latency
         this_thread::sleep_for(chrono::milliseconds(100));
 
-        cout << ts_ms_str() << "OUT" << endl;
+        int n = tr.getY().size();
+        cout << ts_ms_str() << "OUT n="<<setw(5)<<n
+             << " x_s="<<setw(8)<<tr.getX()[0] <<" y_s="<<setw(8)<<tr.getY()[0]
+             << " x_f="<<tr.getX()[n-1] << " y_f="<<tr.getY()[n-1]
+             << endl;
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }
     } else {
@@ -105,6 +136,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 int main() {
   uWS::Hub h;
 
+  // read waypoints data from file
   route.read_data("../data/highway_map.csv");
 
   h.onMessage(onMessage);

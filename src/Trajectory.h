@@ -14,6 +14,8 @@ public:
     void add(double x, double y);
     std::vector<double> getX();
     std::vector<double> getY();
+    // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
+    void respace_at_constant_speed(double dt, double v);
 private:
     std::vector<double> _x_vals;
     std::vector<double> _y_vals;
