@@ -167,7 +167,7 @@ void Route::smooth_using_splines()
 
 // find next n waypoints to follow
 // given car position
-Trajectory Route::get_next_segments(double x, double y, double yaw, int n)
+Trajectory Route::get_next_segments(double x, double y, double yaw, int n) const
 {
   Trajectory tr;
 
@@ -184,7 +184,7 @@ Trajectory Route::get_next_segments(double x, double y, double yaw, int n)
 }
 
 
-int Route::closest_waypoint(double x, double y)
+int Route::closest_waypoint(double x, double y) const
 {
   double closestLen = 1e+100; // max distance
   int closestWaypoint = 0; // index of closest waypoint
@@ -203,7 +203,7 @@ int Route::closest_waypoint(double x, double y)
 }
 
 
-int Route::next_waypoint(double x, double y, double yaw) {
+int Route::next_waypoint(double x, double y, double yaw) const {
   int closestWaypoint = closest_waypoint(x, y);
 
   double map_x = _waypoints_x[closestWaypoint];
@@ -221,7 +221,7 @@ int Route::next_waypoint(double x, double y, double yaw) {
 
 
 // internal version of get_frenet that is also used to re-generate s,d from 'splined' x,y
-std::vector<double> Route::get_frenet2(double x, double y, int next_wp)
+std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
 {
   int prev_wp;
   prev_wp = cyclic_index(next_wp - 1);
@@ -261,7 +261,7 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp)
 
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-std::vector<double> Route::get_frenet(double x, double y, double yaw)
+std::vector<double> Route::get_frenet(double x, double y, double yaw) const
 {
   int next_wp = next_waypoint(x, y, yaw);
   return get_frenet2(x, y, next_wp);
@@ -269,7 +269,7 @@ std::vector<double> Route::get_frenet(double x, double y, double yaw)
 
 
 // Transform from Frenet s,d coordinates to Cartesian x,y
-std::vector<double> Route::get_XY(double s, double d)
+std::vector<double> Route::get_XY(double s, double d) const
 {
   int prev_wp = -1;
 

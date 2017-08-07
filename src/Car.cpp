@@ -4,13 +4,31 @@
 
 #include "Car.h"
 #include <math.h>
+#include <cassert>
+
+using namespace std;
+
 
 Car::Car(double x, double y, double yaw, double speed, const Trajectory& prev_traj) {
   _x = x;
   _y = y;
   _yaw = yaw;
   _speed = speed;
-  _prev_traj = prev_traj;
+  assert(speed>=0);
+  _prev_traj = Trajectory(prev_traj.getDt());
+  // copy all points to previous trajectory from current car position till the end
+  vector<double> tr_x = prev_traj.getX();
+  vector<double> tr_y = prev_traj.getY();
+  int n = tr_x.size();
+  bool found = false;
+  for (int i=0; i<n; i++) {
+    if (!found) {
+      if (tr_x[i] == x && tr_y[i] == y)
+        found = true;
+    }
+    if (found)
+      _prev_traj.add(tr_x[i],tr_y[i]);
+  }
 }
 
 

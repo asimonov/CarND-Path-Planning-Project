@@ -8,19 +8,25 @@
 
 using namespace std;
 
-Trajectory::Trajectory() {}
-
-Trajectory::Trajectory(std::vector<double> x, std::vector<double> y) {
-  assert(x.size() == y.size());
-  _x_vals = x;
-  _y_vals = y;
+Trajectory::Trajectory(double dt)
+{
+  assert(dt>=0);
+  _dt=dt;
 }
 
-std::vector<double> Trajectory::getX() {
+Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) {
+  assert(x.size() == y.size());
+  assert(dt>=0);
+  _x_vals = x;
+  _y_vals = y;
+  _dt = dt;
+}
+
+std::vector<double> Trajectory::getX() const {
   return _x_vals;
 }
 
-std::vector<double> Trajectory::getY() {
+std::vector<double> Trajectory::getY() const {
   return _y_vals;
 }
 
@@ -31,6 +37,7 @@ void Trajectory::add(double x, double y) {
 }
 
 // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
+/*
 void Trajectory::respace_at_constant_speed(double dt, double v)
 {
   if (!_x_vals.size())
@@ -68,4 +75,4 @@ void Trajectory::respace_at_constant_speed(double dt, double v)
   _x_vals = x_vals_new;
   _y_vals = y_vals_new;
 }
-
+*/
