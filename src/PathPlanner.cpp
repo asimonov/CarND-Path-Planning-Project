@@ -79,22 +79,37 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
                                     double max_jerk)
 {
   Trajectory trajectory = car.getPrevTraj(); // final trajectory in (x,y), spaced at time discretisation frequency
-  int len = trajectory.getSize();
-  double planned_t = trajectory.getDt() * len;
 
   // if planned trajectory is longer than time horizon, nothing to do
-  if (planned_t > T)
+  if (trajectory.getTotalT() > T)
     return trajectory;
 
+  int len = trajectory.getSize();
+
+  // get final state of existing trajectory
   double curr_x = car.getX();
   double curr_y = car.getY();
   double curr_yaw = car.getYaw();
+  double curr_speed = car.getSpeed();
+  double curr_acceleration = 0.0;
+  if (len)
+  {
+    auto xy = trajectory.getFinalXY();
+    curr_x = xy[0];
+    curr_y = xy[1];
+    if (len>1) {
+      curr_speed = trajectory.getFinalSpeed();
+      curr_yaw = trajectory.getFinalYaw();
+    }
+    if (len>2)
+      curr_acceleration = trajectory.getFinalAcceleration();
+  }
   auto fr = route.get_frenet(curr_x, curr_y, car.getYaw());
   double curr_s = fr[0];
   double curr_d = fr[1];
 
   // repeat until we reach time horizon
-  while (planned_t < T)
+  while (trajectory.getTotalT() < T)
   {
     // get the next waypoint on the road centerline
     Trajectory waypoints = route.get_next_segments(curr_x, curr_y, curr_yaw, 1);
@@ -109,66 +124,45 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
     double next_s = fr_left_lane[0];
     double next_d = fr_left_lane[1];
 
+    // we find trajectory in (s,d)
+    if (next_s < curr_s)
+      next_s += route.get_max_s();
+    double dist_s = next_s - curr_s;
+    assert(dist_s>0);
 
-    // TODO increase planned_t, update currXXX variables
+    double plan_time = T - trajectory.getTotalT();
+    double use_acceleration = max_acceleration / 2.0;
+    double possible_speed = curr_speed + plan_time * use_acceleration;
+    double next_speed = possible_speed;
+    double next_acceleration = use_acceleration;
+    if (next_speed > max_speed) {
+      next_speed = max_speed;
+      next_acceleration = ( next_speed - curr_speed ) / plan_time;
+    }
+
+    // use JMT to find good trajectory over plan_time
+    JerkMinimizingPolynomial jmt_s({curr_s, curr_speed, curr_acceleration},
+                                   {next_s, next_speed, next_acceleration}, plan_time);
+    // discretise the JMT suggested path
+    int n_steps = floor(plan_time / trajectory.getDt());
+    for (int j=0;j<n_steps; j++)
+    {
+      double s = jmt_s.eval(j*trajectory.getDt());
+      auto xy = route.get_XY(s, next_d);
+      trajectory.add(xy[0], xy[1]);
+    }
+
+    // update currXXX variables
+    auto xy = trajectory.getFinalXY();
+    curr_x = xy[0];
+    curr_y = xy[1];
+    curr_yaw = trajectory.getFinalYaw();
+    curr_speed = trajectory.getFinalSpeed();
+    curr_acceleration = trajectory.getFinalAcceleration();
+    auto fr = route.get_frenet(curr_x, curr_y, curr_yaw);
+    curr_s = fr[0];
+    curr_d = fr[1];
   }
-
-/*
- *
-          double s_prev = fr[0];
-          double s_prev_dot = 0;
-          double s_prev_ddot = 0;
-          double d_prev = fr[1];
-          double d_prev_dot = 0;
-          double d_prev_ddot = 0;
-          double t_total = 0;
-
-          Trajectory waypoints = route.get_next_segments(c.getX(), c.getY(), c.getYaw(), 15);
-          int n_wp = waypoints.getX().size();
-          for (int i=0; i<n_wp; i++) {
-            fr = route.get_frenet(waypoints.getX()[i], waypoints.getY()[i], c.getYaw());
-            fr[1] += 2.0; // be in middle of left lane
-            double s_new = fr[0];
-            double d_new = fr[1];
-
-            double s_dist = s_new - s_prev;
-            assert(s_dist>0);
-            double delta_v = target_speed_ms - s_prev_dot;
-            double used_acceleration = max_acceleration/2.0;
-            double T = abs(delta_v) / used_acceleration; // time horizon over which we can get to desired speed
-//            if (T>time_horizon_s) {
-//              T = time_horizon_s;
-//            }
-            double s_new_dot = s_prev_dot + T*used_acceleration;
-            double s_new_ddot = 0.0;
-            JerkMinimizingPolynomial jmt_s({s_prev, s_prev_dot, s_prev_ddot}, {s_new, s_new_dot, s_new_ddot}, T);
-
-            int n_steps = T/dt_s;
-            for (int j=0;j<n_steps; j++)
-            {
-              double s = jmt_s.eval(j*dt_s);
-              tr_left_lane_frenet.add(s, d_new);
-            }
-
-            s_prev = s_new;
-            s_prev_dot = s_new_dot;
-            s_prev_ddot = s_new_ddot;
-            d_prev = d_new;
-            d_prev_dot = 0;
-            d_prev_ddot = 0;
-            t_total += T;
-            if (t_total > time_horizon_s)
-              break;
-          }
-
-          n_wp = tr_left_lane_frenet.getX().size();
-          for (int i=0; i<n_wp; i++) {
-            auto xy = route.get_XY(tr_left_lane_frenet.getX()[i], tr_left_lane_frenet.getY()[i]);
-            tr.add(xy[0],xy[1]);
-          }
-
- */
-
 
   return trajectory;
 }

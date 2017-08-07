@@ -79,7 +79,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
-        const double time_horizon_s = 2.0; // planning time horizon, in seconds
+        const double time_horizon_s = 3.0; // planning time horizon, in seconds
         const double max_speed = mph2ms(47.0); // max speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
@@ -98,7 +98,10 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // plan trajectory (x,y points spaced at dt_s)
         SensorFusion sf;
         JMTPlanner planner;
-        Trajectory tr = planner.extentTrajectory(car, route, sf, time_horizon_s, max_speed, max_acceleration, max_jerk);
+        Trajectory tr = car.getPrevTraj();
+        double t = tr.getTotalT();
+        if (t < 0.5)
+          tr = planner.extentTrajectory(car, route, sf, time_horizon_s, max_speed, max_acceleration, max_jerk);
 
 //        Trajectory tr = route.get_next_segments(c., 15);
 //

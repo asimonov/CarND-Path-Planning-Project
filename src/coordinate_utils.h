@@ -16,6 +16,7 @@ double deg2rad(double x);
 double rad2deg(double x);
 
 double euclidian_distance(double x1, double y1, double x2, double y2);
+double angle(double x1, double y1, double x2, double y2);
 
 double mph2ms(double mph);
 double ms2mph(double ms);

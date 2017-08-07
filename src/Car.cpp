@@ -47,3 +47,4 @@ std::vector<double> Car::global2car(double x_map, double y_map) const
   double y_car = (y_map - _y) * cos(_yaw) - (x_map - _x) * sin(_yaw);
   return {x_car, y_car};
 }
+

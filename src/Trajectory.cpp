@@ -10,7 +10,7 @@ using namespace std;
 
 Trajectory::Trajectory(double dt)
 {
-  assert(dt>=0);
+  //assert(dt>=0);
   _dt=dt;
 }
 
@@ -20,6 +20,11 @@ Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) 
   _x_vals = x;
   _y_vals = y;
   _dt = dt;
+  int n = _x_vals.size();
+  for (int i=1;i<n;i++) {
+    _dist.push_back(    euclidian_distance(_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]));
+    _heading.push_back( angle             (_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]));
+  }
 }
 
 std::vector<double> Trajectory::getX() const {
@@ -30,11 +35,101 @@ std::vector<double> Trajectory::getY() const {
   return _y_vals;
 }
 
+double Trajectory::getTotalT() const
+{
+  assert(_dt>0);
+  return _dt * _dist.size();
+}
+
+
+std::vector<double> Trajectory::getStartXY() const
+{
+  assert(_x_vals.size()>0);
+  return {_x_vals[0], _y_vals[0]};
+}
+
+std::vector<double> Trajectory::getFinalXY() const
+{
+  int n=_x_vals.size();
+  assert(n>0);
+  return {_x_vals[n-1], _y_vals[n-1]};
+}
+
+double Trajectory::getStartYaw() const
+{
+  assert(_x_vals.size()>1);
+  return _heading[0];
+}
+
+double Trajectory::getFinalYaw() const
+{
+  int n = _x_vals.size();
+  assert(_x_vals.size()>1);
+  return _heading[n-2];
+}
+
 void Trajectory::add(double x, double y) {
   _x_vals.push_back(x);
   _y_vals.push_back(y);
   assert(_x_vals.size() == _y_vals.size());
+  int n = _x_vals.size();
+  if (n>1) {
+    _dist.push_back   ( euclidian_distance(_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]));
+    _heading.push_back( angle             (_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]));
+  }
+  assert(n==_dist.size()+1);
+  assert(n==_heading.size()+1);
 }
+
+double Trajectory::getStartSpeed() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 0)
+    res = _dist[0] / _dt;
+  return res;
+}
+
+double Trajectory::getFinalSpeed() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 0)
+    res = _dist[n-1] / _dt;
+  return res;
+}
+
+double Trajectory::getStartAcceleration() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 1)
+  {
+    double v2 = _dist[1] / _dt;
+    double v1 = _dist[0] / _dt;
+    res = ( v2 - v1 ) / _dt;
+  }
+  return res;
+}
+
+double Trajectory::getFinalAcceleration() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 1)
+  {
+    double v2 = _dist[n-1] / _dt;
+    double v1 = _dist[n-2] / _dt;
+    res = ( v2 - v1 ) / _dt;
+  }
+  return res;
+}
+
+
 
 // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
 /*

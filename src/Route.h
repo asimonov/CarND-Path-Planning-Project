@@ -26,6 +26,8 @@ public:
     // Transform from Frenet s,d coordinates to Cartesian x,y
     std::vector<double> get_XY(double s, double d) const;
 
+    double get_max_s() const;
+
 private:
     // route waypoint's x,y,s and d normalized normal vectors
     std::vector<double> _waypoints_x;

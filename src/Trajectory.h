@@ -21,11 +21,22 @@ public:
     std::vector<double> getY() const;
     double getDt() const {return _dt;}
     int getSize() const {return _x_vals.size(); }
+    double getTotalT() const;
+    std::vector<double> getStartXY() const;
+    std::vector<double> getFinalXY() const;
+    double getStartYaw() const;
+    double getFinalYaw() const;
+    double getStartSpeed() const;
+    double getFinalSpeed() const;
+    double getStartAcceleration() const;
+    double getFinalAcceleration() const;
     // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
     //void respace_at_constant_speed(double dt, double v);
 private:
     std::vector<double> _x_vals; // x coordinate, meters
     std::vector<double> _y_vals; // y coordinate, meters
+    std::vector<double> _dist; // euclidian distances between adjacent (x,y)
+    std::vector<double> _heading; // heading between adjacent (x,y), from beginning of the segment
     double              _dt; // discretisation time interval, seconds
 };
 

@@ -15,10 +15,17 @@ using namespace std;
 Route::Route() {}
 Route::~Route() {}
 
-void Route::read_data(string map_file_) {
-
+double Route::get_max_s() const
+{
   // The max s value before wrapping around the track back to 0
-  //double max_s = 6945.554;
+  double max_s = 6945.554;
+  int n = _waypoints_s.size();
+  double last_dist = euclidian_distance(_waypoints_x[n-1], _waypoints_y[n-1], _waypoints_x[0], _waypoints_y[0]);
+  max_s = _waypoints_s[n-1] + last_dist;
+  return max_s;
+}
+
+void Route::read_data(string map_file_) {
 
   ifstream in_map_(map_file_.c_str(), ifstream::in);
 
@@ -88,10 +95,10 @@ void Route::smooth_using_splines()
     double next_x_gl = _waypoints_x[next_wp];
     double next_y_gl = _waypoints_y[next_wp];
 
-    double angle = atan2(next_y_gl - curr_y_gl, next_x_gl - curr_x_gl);
+    double angl = angle(curr_x_gl, curr_y_gl, next_x_gl, next_y_gl);
 
     // create car at the current waypoint pointing to the next
-    Car c(curr_x_gl, curr_y_gl, angle, 0, Trajectory());
+    Car c(curr_x_gl, curr_y_gl, angl, 0, Trajectory());
 
     // define spline inputs
     for (int i=0;i<NUM_SEGMENTS;i++)
@@ -209,11 +216,11 @@ int Route::next_waypoint(double x, double y, double yaw) const {
   double map_x = _waypoints_x[closestWaypoint];
   double map_y = _waypoints_y[closestWaypoint];
 
-  double heading = atan2((map_y - y), (map_x - x));
+  double heading = angle(x, y, map_x, map_y);
 
-  double angle = fabs(yaw - heading);
+  double angl = fabs(yaw - heading);
 
-  if (angle > pi() / 4)
+  if (angl > pi() / 4)
     closestWaypoint++;
 
   return cyclic_index(closestWaypoint);
@@ -280,7 +287,7 @@ std::vector<double> Route::get_XY(double s, double d) const
   int wp2 = cyclic_index(prev_wp + 1);
   prev_wp = cyclic_index(prev_wp); // to fix bug when s=0 for example
 
-  double heading = atan2((_waypoints_y[wp2] - _waypoints_y[prev_wp]), (_waypoints_x[wp2] - _waypoints_x[prev_wp]));
+  double heading = angle(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[wp2], _waypoints_y[wp2]);
   // the x,y,s along the segment
   double seg_s = (s - _waypoints_s[prev_wp]);
 
