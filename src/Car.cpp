@@ -20,7 +20,8 @@ Car::Car(double x, double y, double yaw, double speed, const Trajectory& prev_tr
   vector<double> tr_x = prev_traj.getX();
   vector<double> tr_y = prev_traj.getY();
   int n = tr_x.size();
-  bool found = false;
+//  bool found = false;
+  bool found = true;
   for (int i=0; i<n; i++) {
     if (!found) {
       if (tr_x[i] == x && tr_y[i] == y)

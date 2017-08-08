@@ -69,11 +69,15 @@ Trajectory CircularLinePlanner::getTrajectory(const Car& c)
 }
 */
 
+int sgn(double val) {
+  return (0.0 < val) - (val < 0.0);
+}
 
 Trajectory JMTPlanner::extentTrajectory(const Car& car,
                                     const Route& route,
                                     const SensorFusion& sf,
                                     double T,
+                                    double target_speed,
                                     double max_speed,
                                     double max_acceleration,
                                     double max_jerk)
@@ -90,6 +94,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
   double curr_yaw = car.getYaw();
   double curr_speed = car.getSpeed();
   double curr_acceleration = 0.0;
+  double curr_jerk = 0.0;
   int len = trajectory.getSize();
   if (len)
   {
@@ -102,68 +107,56 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
     }
     if (len>2)
       curr_acceleration = trajectory.getFinalAcceleration();
+    if (len>3)
+      curr_jerk = trajectory.getFinalJerk();
   }
   auto fr = route.get_frenet(curr_x, curr_y, car.getYaw());
   double curr_s = fr[0];
   double curr_d = fr[1];
 
-  // repeat until we reach time horizon
-  while (trajectory.getTotalT() < T)
+  // get planning horizon possible conditions
+  double plan_time = T - trajectory.getTotalT();
+  double delta_speed = target_speed - curr_speed; // can be negative
+
+  double safety_factor = 0.5;
+
+  double usable_jerk = max_jerk * safety_factor;
+
+  double usable_acceleration = max_acceleration * safety_factor;
+  double possible_acceleration = usable_jerk / plan_time;
+  if (possible_acceleration < usable_acceleration)
+    usable_acceleration = possible_acceleration;
+
+  double possible_speed = curr_speed
+                          + sgn(delta_speed) * usable_acceleration * plan_time
+                          + sgn(delta_speed) * 0.5 * usable_jerk   * plan_time * plan_time;
+  if (possible_speed > max_speed)
+    possible_speed = max_speed;
+  if (possible_speed < 0.0)
+    possible_speed = target_speed;
+  if (possible_speed >= target_speed && delta_speed>=0)
+    possible_speed = target_speed;
+  if (possible_speed < target_speed && delta_speed<0)
+    possible_speed = target_speed;
+
+  // possible distance can be longer than we need, but this is fine
+  double possible_distance = curr_speed * plan_time
+                             + 0.5 * usable_acceleration * plan_time * plan_time
+                             + (1./6.) * usable_jerk * plan_time * plan_time * plan_time;
+  assert(possible_distance>0);
+
+  // use JMT to find good trajectory over plan_time
+  JerkMinimizingPolynomial jmt_s({0,                 curr_speed,     curr_acceleration},
+                                 {possible_distance, possible_speed, 0.0}, plan_time);
+  // discretise the JMT suggested path
+  int n_steps = floor(plan_time / trajectory.getDt());
+  std::vector<double> svec;
+  for (int j=0;j<n_steps; j++)
   {
-    // get the next waypoint on the road centerline
-    Trajectory waypoints = route.get_next_segments(curr_x, curr_y, curr_yaw, 1);
-    assert(waypoints.getX().size() > 0);
-    double next_x_center = waypoints.getX()[0];
-    double next_y_center = waypoints.getY()[0];
-    // calculate next waypoint s,d for position in left lane
-    auto fr_center = route.get_frenet(next_x_center, next_y_center, curr_yaw);
-    double lane_width = 4.0;
-    auto fr_left_lane = fr_center;
-    fr_left_lane[1] += lane_width / 2.0; // be in the middle of left lane
-    double next_s = fr_left_lane[0];
-    double next_d = fr_left_lane[1];
-
-    // we find trajectory in (s,d)
-    if (next_s < curr_s)
-      next_s += route.get_max_s();
-    double dist_s = next_s - curr_s;
-    assert(dist_s>0);
-
-    double plan_time = T - trajectory.getTotalT();
-    double use_acceleration = max_acceleration / 2.0;
-    double possible_speed = curr_speed + plan_time * use_acceleration;
-    double next_speed = possible_speed;
-    double next_acceleration = use_acceleration;
-    if (next_speed > max_speed) {
-      next_speed = max_speed;
-      next_acceleration = ( next_speed - curr_speed ) / plan_time;
-    }
-
-    next_acceleration = 0.0;
-    // use JMT to find good trajectory over plan_time
-    JerkMinimizingPolynomial jmt_s({curr_s, curr_speed, curr_acceleration},
-                                   {next_s, next_speed, next_acceleration}, plan_time);
-    // discretise the JMT suggested path
-    int n_steps = floor(plan_time / trajectory.getDt());
-    std::vector<double> svec;
-    for (int j=0;j<n_steps; j++)
-    {
-      double s = jmt_s.eval(j*trajectory.getDt());
-      auto xy = route.get_XY(s, next_d);
-      trajectory.add(xy[0], xy[1]);
-      svec.push_back(s);
-    }
-
-    // update currXXX variables
-    auto xy = trajectory.getFinalXY();
-    curr_x = xy[0];
-    curr_y = xy[1];
-    curr_yaw = trajectory.getFinalYaw();
-    curr_speed = trajectory.getFinalSpeed();
-    curr_acceleration = trajectory.getFinalAcceleration();
-    auto fr = route.get_frenet(curr_x, curr_y, curr_yaw);
-    curr_s = fr[0];
-    curr_d = fr[1];
+    double s = jmt_s.eval(j*trajectory.getDt());
+    auto xy = route.get_XY(curr_s + s, curr_d);
+    trajectory.add(xy[0], xy[1]);
+    svec.push_back(s);
   }
 
   return trajectory;

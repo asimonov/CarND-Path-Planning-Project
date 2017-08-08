@@ -30,6 +30,8 @@ public:
     double getFinalSpeed() const;
     double getStartAcceleration() const;
     double getFinalAcceleration() const;
+    double getStartJerk() const;
+    double getFinalJerk() const;
     // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
     //void respace_at_constant_speed(double dt, double v);
 private:

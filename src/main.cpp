@@ -79,13 +79,18 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
-        const double time_horizon_s = 3.0; // planning time horizon, in seconds
-        const double max_speed = mph2ms(47.0); // max speed in meter/second
+        const double time_horizon_s = 15.0; // planning time horizon, in seconds
+        const double max_speed = mph2ms(50.0); // max speed in meter/second
+        const double target_speed = mph2ms(47.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
         // define car object
-        Car car(car_x, car_y, deg2rad(car_yaw), car_speed, Trajectory(previous_path_x, previous_path_y, dt_s));
+        Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
+        std::stringstream ss;
+        ss << "in_traj_" << ts_ms();
+        dump_trajectory(in_traj, ss.str());
+        Car car(car_x, car_y, deg2rad(car_yaw), car_speed, in_traj);
 
         // log event
         auto fr = route.get_frenet(car.getX(), car.getY(), car.getYaw());
@@ -101,9 +106,10 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Trajectory tr = car.getPrevTraj();
         double t = tr.getTotalT();
         if (t < 0.5) {
-          tr = planner.extentTrajectory(car, route, sf, time_horizon_s, max_speed, max_acceleration, max_jerk);
+          cout << "t="<< t << "(n="<<tr.getSize()<<") extending.." << endl;
+          tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss;
-          ss << "traj" << ts_ms();
+          ss << "out_traj_" << ts_ms();
           dump_trajectory(tr, ss.str());
         }
 //        Trajectory tr = route.get_next_segments(c., 15);

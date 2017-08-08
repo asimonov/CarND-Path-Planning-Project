@@ -129,7 +129,41 @@ double Trajectory::getFinalAcceleration() const
   return res;
 }
 
+double Trajectory::getStartJerk() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 2)
+  {
+    double v2 = _dist[2] / _dt;
+    double v1 = _dist[1] / _dt;
+    double a2 = ( v2 - v1 ) / _dt;
+    v2 = _dist[1] / _dt;
+    v1 = _dist[0] / _dt;
+    double a1 = ( v2 - v1 ) / _dt;
+    res = ( a2 - a1 ) / _dt;
+  }
+  return res;
+}
 
+double Trajectory::getFinalJerk() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  int n = _dist.size();
+  if (n > 2)
+  {
+    double v2 = _dist[n-1] / _dt;
+    double v1 = _dist[n-2] / _dt;
+    double a2 = ( v2 - v1 ) / _dt;
+    v2 = _dist[n-2] / _dt;
+    v1 = _dist[n-3] / _dt;
+    double a1 = ( v2 - v1 ) / _dt;
+    res = ( a2 - a1 ) / _dt;
+  }
+  return res;
+}
 
 // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
 /*

@@ -24,6 +24,7 @@ public:
                                         const Route& route,
                                         const SensorFusion& sf,
                                         double T,
+                                        double target_speed,
                                         double max_speed,
                                         double max_acceleration,
                                         double max_jerk
@@ -56,6 +57,7 @@ public:
                                         const Route& route,
                                         const SensorFusion& sf,
                                         double T,
+                                        double target_speed,
                                         double max_speed,
                                         double max_acceleration,
                                         double max_jerk);
