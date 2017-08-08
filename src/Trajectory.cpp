@@ -5,13 +5,32 @@
 #include "Trajectory.h"
 #include <cassert>
 #include "coordinate_utils.h"
+#include <limits>
 
 using namespace std;
 
+Trajectory::Trajectory()
+{
+  _dt = -1;
+  _total_distance = 0.0;
+  _min_speed = numeric_limits<double>::max();
+  _max_speed = numeric_limits<double>::min();
+  _min_acceleration = numeric_limits<double>::max();
+  _max_acceleration = numeric_limits<double>::min();
+  _min_jerk = numeric_limits<double>::max();
+  _max_jerk = numeric_limits<double>::min();
+}
+
 Trajectory::Trajectory(double dt)
 {
-  //assert(dt>=0);
   _dt=dt;
+  _total_distance = 0.0;
+  _min_speed = numeric_limits<double>::max();
+  _max_speed = numeric_limits<double>::min();
+  _min_acceleration = numeric_limits<double>::max();
+  _max_acceleration = numeric_limits<double>::min();
+  _min_jerk = numeric_limits<double>::max();
+  _max_jerk = numeric_limits<double>::min();
 }
 
 Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) {
@@ -21,10 +40,42 @@ Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) 
   _y_vals = y;
   _dt = dt;
   int n = _x_vals.size();
+  _total_distance = 0.0;
   for (int i=1;i<n;i++) {
-    _dist.push_back(    euclidian_distance(_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]));
-    _heading.push_back( angle             (_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]));
+    double d = euclidian_distance(_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]);
+    _dist.push_back(d);
+    _total_distance += d;
+    double s = d / _dt;
+    _speed.push_back(s);
+    if (s<_min_speed)
+      _min_speed = s;
+    if (s>_max_speed)
+      _max_speed = s;
+    _heading.push_back( angle(_x_vals[i - 1], _y_vals[i - 1], _x_vals[i], _y_vals[i]));
   }
+  assert(_x_vals.size()==0 || _x_vals.size()-1==_dist.size());
+  assert(_dist.size()==_speed.size());
+  assert(_dist.size()==_heading.size());
+  n = _speed.size();
+  for (int i=1;i<n;i++) {
+    double a = (_speed[i] - _speed[i-1]) / _dt;
+    _acceleration.push_back( a );
+    if (a<_min_acceleration)
+      _min_acceleration = a;
+    if (a>_max_acceleration)
+      _max_acceleration = a;
+  }
+  assert(_speed.size()==0 || _speed.size()-1==_acceleration.size());
+  n = _acceleration.size();
+  for (int i=1;i<n;i++) {
+    double j = (_acceleration[i] - _acceleration[i-1]) / _dt;
+    _jerk.push_back( j );
+    if (j<_min_jerk)
+      _min_jerk = j;
+    if (j>_max_jerk)
+      _max_jerk = j;
+  }
+  assert(_acceleration.size()==0 || _acceleration.size()-1==_jerk.size());
 }
 
 std::vector<double> Trajectory::getX() const {
@@ -74,20 +125,48 @@ void Trajectory::add(double x, double y) {
   assert(_x_vals.size() == _y_vals.size());
   int n = _x_vals.size();
   if (n>1) {
-    _dist.push_back   ( euclidian_distance(_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]));
+    double d = euclidian_distance(_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]);
+    _dist.push_back   ( d );
+    _total_distance += d;
+    double v = d / _dt;
+    _speed.push_back  ( v );
+    if (v<_min_speed)
+      _min_speed = v;
+    if (v>_max_speed)
+      _max_speed = v;
     _heading.push_back( angle             (_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]));
   }
   assert(n==_dist.size()+1);
   assert(n==_heading.size()+1);
+  n = _speed.size();
+  if (n>1) {
+    double a = (_speed[n-1] - _speed[n-2]) / _dt;
+    _acceleration.push_back( a );
+    if (a<_min_acceleration)
+      _min_acceleration = a;
+    if (a>_max_acceleration)
+      _max_acceleration = a;
+  }
+  assert(n==0 || n-1==_acceleration.size());
+  n = _acceleration.size();
+  if (n>1) {
+    double j = (_acceleration[n-1] - _acceleration[n-2]) / _dt;
+    _jerk.push_back( j );
+    if (j<_min_jerk)
+      _min_jerk = j;
+    if (j>_max_jerk)
+      _max_jerk = j;
+  }
+  assert(_acceleration.size()==0 || _acceleration.size()-1==_jerk.size());
 }
 
 double Trajectory::getStartSpeed() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 0)
-    res = _dist[0] / _dt;
+  int n = _speed.size();
+  if (n)
+    res = _speed[0];
   return res;
 }
 
@@ -95,9 +174,9 @@ double Trajectory::getFinalSpeed() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 0)
-    res = _dist[n-1] / _dt;
+  int n = _speed.size();
+  if (n)
+    res = _speed[n-1];
   return res;
 }
 
@@ -105,13 +184,9 @@ double Trajectory::getStartAcceleration() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 1)
-  {
-    double v2 = _dist[1] / _dt;
-    double v1 = _dist[0] / _dt;
-    res = ( v2 - v1 ) / _dt;
-  }
+  int n = _acceleration.size();
+  if (n)
+    res = _acceleration[0];
   return res;
 }
 
@@ -119,13 +194,9 @@ double Trajectory::getFinalAcceleration() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 1)
-  {
-    double v2 = _dist[n-1] / _dt;
-    double v1 = _dist[n-2] / _dt;
-    res = ( v2 - v1 ) / _dt;
-  }
+  int n = _acceleration.size();
+  if (n)
+    res = _acceleration[n-1];
   return res;
 }
 
@@ -133,17 +204,9 @@ double Trajectory::getStartJerk() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 2)
-  {
-    double v2 = _dist[2] / _dt;
-    double v1 = _dist[1] / _dt;
-    double a2 = ( v2 - v1 ) / _dt;
-    v2 = _dist[1] / _dt;
-    v1 = _dist[0] / _dt;
-    double a1 = ( v2 - v1 ) / _dt;
-    res = ( a2 - a1 ) / _dt;
-  }
+  int n = _jerk.size();
+  if (n)
+    res = _jerk[0];
   return res;
 }
 
@@ -151,57 +214,59 @@ double Trajectory::getFinalJerk() const
 {
   assert(_dt>0);
   double res = 0.0;
-  int n = _dist.size();
-  if (n > 2)
-  {
-    double v2 = _dist[n-1] / _dt;
-    double v1 = _dist[n-2] / _dt;
-    double a2 = ( v2 - v1 ) / _dt;
-    v2 = _dist[n-2] / _dt;
-    v1 = _dist[n-3] / _dt;
-    double a1 = ( v2 - v1 ) / _dt;
-    res = ( a2 - a1 ) / _dt;
-  }
+  int n = _jerk.size();
+  if (n)
+    res = _jerk[n-1];
   return res;
 }
 
-// recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
-/*
-void Trajectory::respace_at_constant_speed(double dt, double v)
+double Trajectory::getMinSpeed() const
 {
-  if (!_x_vals.size())
-    return;
-
-  vector<double> x_vals_new;
-  vector<double> y_vals_new;
-
-  double disc_dist = v*dt;
-  double prev_x = _x_vals[0];
-  double prev_y = _y_vals[0];
-  double next_x;
-  double next_y;
-  double dist;
-
-  for (int i=1; i<_x_vals.size(); i++)
-  {
-    next_x = _x_vals[i];
-    next_y = _y_vals[i];
-    dist = euclidian_distance(prev_x, prev_y, next_x, next_y);
-    double num = dist/disc_dist;
-    if (num<1.0)
-      break;
-    double dx = (next_x - prev_x) / num;
-    double dy = (next_y - prev_y) / num;
-    double x,y;
-    for (int j=0; j<num; j++) {
-      x_vals_new.push_back(prev_x + j * dx);
-      y_vals_new.push_back(prev_y + j * dy);
-    }
-    prev_x = next_x;
-    prev_y = next_y;
-  }
-
-  _x_vals = x_vals_new;
-  _y_vals = y_vals_new;
+  assert(_dt>0);
+  assert(_speed.size());
+  return _min_speed;
 }
-*/
+
+double Trajectory::getMaxSpeed() const
+{
+  assert(_dt>0);
+  assert(_speed.size());
+  return _max_speed;
+}
+
+double Trajectory::getMinAcceleration() const
+{
+  assert(_dt>0);
+  assert(_acceleration.size());
+  return _min_acceleration;
+}
+
+double Trajectory::getMaxAcceleration() const
+{
+  assert(_dt>0);
+  assert(_acceleration.size());
+  return _max_acceleration;
+}
+
+double Trajectory::getMinJerk() const
+{
+  assert(_dt>0);
+  assert(_jerk.size());
+  return _min_jerk;
+}
+
+double Trajectory::getMaxJerk() const
+{
+  assert(_dt>0);
+  assert(_jerk.size());
+  return _max_jerk;
+}
+
+double Trajectory::getTotalSquaredJerk() const
+{
+  assert(_dt>0);
+  double res = 0.0;
+  for (int i=0; i<_jerk.size(); i++)
+    res += _jerk[i] * _jerk[i];
+  return res;
+}

@@ -13,31 +13,55 @@
 // if dt is zero then derivative calculation does not work
 class Trajectory {
 public:
-    Trajectory() {_dt=-1;}
+    Trajectory();
     Trajectory(double dt);
     Trajectory(std::vector<double> x, std::vector<double> y, double dt);
+
     void add(double x, double y);
+
     std::vector<double> getX() const;
     std::vector<double> getY() const;
+
     double getDt() const {return _dt;}
     int getSize() const {return _x_vals.size(); }
     double getTotalT() const;
+    double getTotalDistance() const { return _total_distance; }
+
     std::vector<double> getStartXY() const;
     std::vector<double> getFinalXY() const;
+
     double getStartYaw() const;
     double getFinalYaw() const;
+
     double getStartSpeed() const;
     double getFinalSpeed() const;
+    double getMinSpeed() const;
+    double getMaxSpeed() const;
+
     double getStartAcceleration() const;
     double getFinalAcceleration() const;
+    double getMinAcceleration() const;
+    double getMaxAcceleration() const;
+
     double getStartJerk() const;
     double getFinalJerk() const;
-    // recalculate (inplace) assuming constant speed of v (units/sec) and discretisation dt
-    //void respace_at_constant_speed(double dt, double v);
+    double getMinJerk() const;
+    double getMaxJerk() const;
+    double getTotalSquaredJerk() const;
 private:
     std::vector<double> _x_vals; // x coordinate, meters
     std::vector<double> _y_vals; // y coordinate, meters
     std::vector<double> _dist; // euclidian distances between adjacent (x,y)
+    double              _total_distance;
+    std::vector<double> _speed; // speed between adjacent (x,y)
+    double              _min_speed;
+    double              _max_speed;
+    std::vector<double> _acceleration; // acceleration between adjacent speed points
+    double              _min_acceleration;
+    double              _max_acceleration;
+    std::vector<double> _jerk; // jerk between adjacent acceleration points
+    double              _min_jerk;
+    double              _max_jerk;
     std::vector<double> _heading; // heading between adjacent (x,y), from beginning of the segment
     double              _dt; // discretisation time interval, seconds
 };
