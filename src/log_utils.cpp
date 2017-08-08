@@ -5,8 +5,12 @@
 #include "log_utils.h"
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 
-class comma_numpunct : public std::__1::numpunct<char>
+using namespace std;
+
+
+class comma_numpunct : public std::numpunct<char>
 {
 protected:
     virtual char do_thousands_sep() const
@@ -14,7 +18,7 @@ protected:
       return ',';
     }
 
-    virtual std::__1::string do_grouping() const
+    virtual std::string do_grouping() const
     {
       return "\03";
     }
@@ -22,17 +26,33 @@ protected:
 
 unsigned long ts_ms()
 {
-  static auto glob_start_ts = std::__1::chrono::steady_clock::now().time_since_epoch().count();
-  auto ts = std::__1::chrono::steady_clock::now().time_since_epoch().count();
+  static auto glob_start_ts = std::chrono::steady_clock::now().time_since_epoch().count();
+  auto ts = std::chrono::steady_clock::now().time_since_epoch().count();
   unsigned long ms = (ts-glob_start_ts) / 1000000;
   return ms;
 }
 
 std::string ts_ms_str()
 {
-  static std::__1::locale comma_locale(std::__1::locale(), new comma_numpunct());
+  static std::locale comma_locale(std::locale(), new comma_numpunct());
   std::stringstream ss;
   ss.imbue(comma_locale);
-  ss << std::__1::setw(8) << std::__1::fixed << ts_ms() << " ms: ";
+  ss << std::setw(8) << std::fixed << ts_ms() << " ms: ";
   return ss.str();
+}
+
+void dump_trajectory(const Trajectory& tr, std::string filename)
+{
+  ofstream f(filename.c_str(), ofstream::out);
+
+  string line;
+  vector<double> x = tr.getX();
+  vector<double> y = tr.getY();
+  int n = x.size();
+  double dt = tr.getDt();
+  for (int i=0;i<n;i++)
+  {
+    f<<(i*dt)<<" "<<x[i]<<" "<<y[i]<<endl;
+  }
+
 }

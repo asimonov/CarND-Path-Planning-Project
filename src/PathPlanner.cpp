@@ -84,14 +84,13 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
   if (trajectory.getTotalT() > T)
     return trajectory;
 
-  int len = trajectory.getSize();
-
   // get final state of existing trajectory
   double curr_x = car.getX();
   double curr_y = car.getY();
   double curr_yaw = car.getYaw();
   double curr_speed = car.getSpeed();
   double curr_acceleration = 0.0;
+  int len = trajectory.getSize();
   if (len)
   {
     auto xy = trajectory.getFinalXY();
@@ -140,16 +139,19 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
       next_acceleration = ( next_speed - curr_speed ) / plan_time;
     }
 
+    next_acceleration = 0.0;
     // use JMT to find good trajectory over plan_time
     JerkMinimizingPolynomial jmt_s({curr_s, curr_speed, curr_acceleration},
                                    {next_s, next_speed, next_acceleration}, plan_time);
     // discretise the JMT suggested path
     int n_steps = floor(plan_time / trajectory.getDt());
+    std::vector<double> svec;
     for (int j=0;j<n_steps; j++)
     {
       double s = jmt_s.eval(j*trajectory.getDt());
       auto xy = route.get_XY(s, next_d);
       trajectory.add(xy[0], xy[1]);
+      svec.push_back(s);
     }
 
     // update currXXX variables

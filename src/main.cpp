@@ -85,7 +85,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
         // define car object
-        Car car(car_x, car_y, car_yaw, car_speed, Trajectory(previous_path_x, previous_path_y, dt_s));
+        Car car(car_x, car_y, deg2rad(car_yaw), car_speed, Trajectory(previous_path_x, previous_path_y, dt_s));
 
         // log event
         auto fr = route.get_frenet(car.getX(), car.getY(), car.getYaw());
@@ -100,9 +100,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         JMTPlanner planner;
         Trajectory tr = car.getPrevTraj();
         double t = tr.getTotalT();
-        if (t < 0.5)
+        if (t < 0.5) {
           tr = planner.extentTrajectory(car, route, sf, time_horizon_s, max_speed, max_acceleration, max_jerk);
-
+          std::stringstream ss;
+          ss << "traj" << ts_ms();
+          dump_trajectory(tr, ss.str());
+        }
 //        Trajectory tr = route.get_next_segments(c., 15);
 //
 //        if (planned_n < time_horizon_s/dt_s) {
