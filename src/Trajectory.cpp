@@ -270,3 +270,31 @@ double Trajectory::getTotalSquaredJerk() const
     res += _jerk[i] * _jerk[i];
   return res;
 }
+
+double Trajectory::getCost(double target_time, double target_speed, double max_speed, double max_acceleration, double max_jerk) const {
+  double res = 0.0;
+  double max_cost = std::numeric_limits<double>::max();
+
+  if (_jerk.size()==0)
+    return max_cost;
+
+  // penalize going over the limits
+//  if (fabs(getMaxJerk()) > max_jerk)
+//    return max_cost;
+  if (fabs(getMaxAcceleration()) > max_acceleration)
+    return max_cost;
+  if (getMaxSpeed() > max_speed)
+    return max_cost;
+  if (getMinSpeed() < 0.0)
+    return max_cost;
+  if (target_time > getTotalT())
+    return max_cost;
+
+  // time
+  double t = getTotalT() - target_time;
+  res += t / sqrt(1+t*t);
+  // speed
+  double v = getFinalSpeed() - target_speed;
+  res += fabs(v) / sqrt(1+v*v);
+  return res;
+}

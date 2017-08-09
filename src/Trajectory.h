@@ -48,6 +48,8 @@ public:
     double getMinJerk() const;
     double getMaxJerk() const;
     double getTotalSquaredJerk() const;
+
+    double getCost(double target_time, double target_speed, double max_speed, double max_acceleration, double max_jerk) const;
 private:
     std::vector<double> _x_vals; // x coordinate, meters
     std::vector<double> _y_vals; // y coordinate, meters

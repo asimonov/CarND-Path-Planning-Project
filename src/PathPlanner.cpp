@@ -5,6 +5,10 @@
 #include "PathPlanner.h"
 #include "coordinate_utils.h"
 #include "JerkMinimizingPolynomial.h"
+#include <iostream>
+
+using namespace std;
+
 
 /*
 // straight line and constant velosity trajectory
@@ -114,52 +118,73 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
   double curr_s = fr[0];
   double curr_d = fr[1];
 
-  // get planning horizon possible conditions
-  double plan_time = T - trajectory.getTotalT();
-  double delta_speed = target_speed - curr_speed; // can be negative
 
-  double safety_factor = 0.5;
+  // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
+  vector<double> T_values = {T};
+  // add more time horizons to 5 seconds extra, in steps of 0.5 secs
+  for (int i=0; i<30; i++)
+    T_values.push_back( T + (i+1)*0.5 );
+  vector<double> s_values = {0.0};
+  // add more s horizons (from current s) to 200 meters ahead, in steps of 5 meters
+  for (int i=0; i<40; i++)
+    s_values.push_back( (i+1)*5 );
+  vector<double> d_values = {2.0, 6.0, 9.5}; // centers of left, center and right lanes
 
-  double usable_jerk = max_jerk * safety_factor;
+  T_values = {20};
+  s_values = {200};
+  d_values = {6};
 
-  double usable_acceleration = max_acceleration * safety_factor;
-  double possible_acceleration = usable_jerk / plan_time;
-  if (possible_acceleration < usable_acceleration)
-    usable_acceleration = possible_acceleration;
-
-  double possible_speed = curr_speed
-                          + sgn(delta_speed) * usable_acceleration * plan_time
-                          + sgn(delta_speed) * 0.5 * usable_jerk   * plan_time * plan_time;
-  if (possible_speed > max_speed)
-    possible_speed = max_speed;
-  if (possible_speed < 0.0)
-    possible_speed = target_speed;
-  if (possible_speed >= target_speed && delta_speed>=0)
-    possible_speed = target_speed;
-  if (possible_speed < target_speed && delta_speed<0)
-    possible_speed = target_speed;
-
-  // possible distance can be longer than we need, but this is fine
-  double possible_distance = curr_speed * plan_time
-                             + 0.5 * usable_acceleration * plan_time * plan_time
-                             + (1./6.) * usable_jerk * plan_time * plan_time * plan_time;
-  assert(possible_distance>0);
-
-  // use JMT to find good trajectory over plan_time
-  JerkMinimizingPolynomial jmt_s({0,                 curr_speed,     curr_acceleration},
-                                 {possible_distance, possible_speed, 0.0}, plan_time);
-  // discretise the JMT suggested path
-  int n_steps = floor(plan_time / trajectory.getDt());
-  std::vector<double> svec;
-  for (int j=0;j<n_steps; j++)
+  // generate trajectories and find one with minimal cost
+  Trajectory best_trajectory = trajectory;
+  double best_cost = best_trajectory.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
+  for (double sample_t : T_values)
   {
-    double s = jmt_s.eval(j*trajectory.getDt());
-    auto xy = route.get_XY(curr_s + s, curr_d);
-    trajectory.add(xy[0], xy[1]);
-    svec.push_back(s);
+    for (double sample_s : s_values)
+    {
+      for (double sample_d : d_values)
+      {
+        // use JMT to find good trajectory in s
+        double v_s = curr_speed * cos(curr_yaw);
+        double a_s = curr_acceleration * cos(curr_yaw);
+        double target_v_s = target_speed;
+        double target_a_s = 0.0;
+        JerkMinimizingPolynomial jmt_s({0,        v_s,        a_s},
+                                       {sample_s, target_v_s, target_a_s},
+                                       sample_t);
+
+        // use JMT to find good trajectory in d
+        double v_d = curr_speed * sin(curr_yaw);
+        double a_d = curr_acceleration * sin(curr_yaw);
+        double target_v_d = 0.0;
+        double target_a_d = 0.0;
+        JerkMinimizingPolynomial jmt_d({curr_d,   v_d,        a_d},
+                                       {sample_d, target_v_d, target_a_d},
+                                       sample_t);
+
+        // discretise the JMT suggested path
+        Trajectory sample_tr = trajectory; // copy existing trajectory
+        double dt = trajectory.getDt();
+        int n_steps = floor(sample_t / dt);
+        for (int j=0;j<n_steps; j++)
+        {
+          double s = curr_s + jmt_s.eval(j*dt);
+          double d = jmt_d.eval(j*dt);
+          auto xy = route.get_XY(s, d);
+          sample_tr.add(xy[0], xy[1]);
+        }
+        // estimate trajectory cost and update if it's best we've seen so far
+        double cost = sample_tr.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
+//cout<<sample_tr.getMaxJerk()<<" t="<<sample_t<<" s="<<sample_s<<" d="<<sample_d<<endl;
+//        if (cost < best_cost)
+//        {
+          best_trajectory = sample_tr;
+          best_cost = cost;
+//        }
+      }
+    }
   }
 
-  return trajectory;
+  return best_trajectory;
 }
 
 
