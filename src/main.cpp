@@ -92,7 +92,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         dump_trajectory(in_traj, ss.str());
 
         // cut old trajectory to this size
-        const double keep_old_trajectory_secs = 1.0;
+        const double keep_old_trajectory_secs = 10.0;
         vector<double> x, y;
         double i=0;
         while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
@@ -117,14 +117,14 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         SensorFusion sf;
         JMTPlanner planner;
         Trajectory tr = car.getPrevTraj();
-//        double t = tr.getTotalT();
-//        if (t < 1.0) {
+        double t = tr.getTotalT();
+        if (t < 1.0) {
           cout << "t="<< tr.getTotalT() << "(n="<<tr.getSize()<<") extending.." << endl;
           tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
           dump_trajectory(tr, ss2.str());
-//        }
+        }
 
 
         // send control message back to the simulator

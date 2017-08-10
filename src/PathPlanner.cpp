@@ -172,11 +172,11 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
           double d = jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);
-          if (first) {
-            cout<<"old s: "<<curr_s<<" new s: "<<s<<" old d: "<<curr_d<<" new d: "<<d<<endl;
-            cout<<"old x: "<<curr_x<<" new x: "<<xy[0]<<" old y: "<<curr_y<<" new y: "<<xy[1]<<endl;
-            first = false;
-          }
+//          if (first) {
+//            cout<<"old s: "<<curr_s<<" new s: "<<s<<" old d: "<<curr_d<<" new d: "<<d<<endl;
+//            cout<<"old x: "<<curr_x<<" new x: "<<xy[0]<<" old y: "<<curr_y<<" new y: "<<xy[1]<<endl;
+//            first = false;
+//          }
         }
         // estimate trajectory cost and update if it's best we've seen so far
         double cost = sample_tr.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
