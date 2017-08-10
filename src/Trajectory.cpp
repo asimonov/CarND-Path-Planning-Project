@@ -282,20 +282,37 @@ double Trajectory::getCost(double target_time, double target_speed, double max_s
   // penalize going over the limits
 //  if (fabs(getMaxJerk()) > max_jerk)
 //    return max_cost;
-  if (fabs(getMaxAcceleration()) > max_acceleration)
-    return max_cost;
+//  if (fabs(getMaxAcceleration()) > max_acceleration)
+//    return max_cost;
   if (getMaxSpeed() > max_speed)
     return max_cost;
   if (getMinSpeed() < 0.0)
     return max_cost;
-  if (target_time > getTotalT())
-    return max_cost;
+//  if (target_time > getTotalT())
+//    return max_cost;
 
-  // time
+  // time -> target
   double t = getTotalT() - target_time;
-  res += t / sqrt(1+t*t);
-  // speed
+  res += fabs(t) / sqrt(1+t*t);
+  // distance -> max
+//  double d = getTotalDistance();
+//  if (d>1e-6)
+//    res += 1 / d;
+  // speed -> target
   double v = getFinalSpeed() - target_speed;
   res += fabs(v) / sqrt(1+v*v);
+  // average speed -> max
+  double av = getTotalDistance() / getTotalT();
+  res += 1 / av;
+  // average square jerk -> min
+  if (_jerk.size() > 0) {
+    double aj2 = 0.0;
+    for (int i = 0; i < _jerk.size(); i++)
+      aj2 += _jerk[i] * _jerk[i];
+    aj2 /= _jerk.size(); // average jerk
+    aj2 /= max_jerk*max_jerk; // scale down using max jerk
+    res += aj2;
+  }
+
   return res;
 }

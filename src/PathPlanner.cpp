@@ -121,17 +121,17 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
 
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
   vector<double> T_values = {T};
-  // add more time horizons to 5 seconds extra, in steps of 0.5 secs
-  for (int i=0; i<30; i++)
+  // add more time horizons to 7.5 seconds extra, in steps of 0.5 secs
+  for (int i=0; i<15; i++)
     T_values.push_back( T + (i+1)*0.5 );
-  vector<double> s_values = {0.0};
-  // add more s horizons (from current s) to 200 meters ahead, in steps of 5 meters
-  for (int i=0; i<40; i++)
-    s_values.push_back( (i+1)*5 );
+  vector<double> s_values = {};
+  // add more s horizons (from current s) to 200 meters ahead, in steps of 10 meters
+  for (int i=0; i<20; i++)
+    s_values.push_back( (i+1)*10 );
   vector<double> d_values = {2.0, 6.0, 9.5}; // centers of left, center and right lanes
 
-  T_values = {T};
-  s_values = {100};
+//  T_values = {T};
+//  s_values = {100};
   d_values = {2};
 
   // generate trajectories and find one with minimal cost
@@ -145,7 +145,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
       {
         // use JMT to find good trajectory in s
         double v_s = curr_speed;// * cos(curr_yaw);
-        double a_s = curr_acceleration;// * cos(curr_yaw);
+        double a_s = 0.0;//curr_acceleration;// * cos(curr_yaw);
         double target_v_s = target_speed;
         double target_a_s = 0.0;
         JerkMinimizingPolynomial jmt_s({0,        v_s,        a_s},
@@ -181,11 +181,11 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
         // estimate trajectory cost and update if it's best we've seen so far
         double cost = sample_tr.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
 //cout<<sample_tr.getMaxJerk()<<" t="<<sample_t<<" s="<<sample_s<<" d="<<sample_d<<endl;
-//        if (cost < best_cost)
-//        {
+        if (cost < best_cost)
+        {
           best_trajectory = sample_tr;
           best_cost = cost;
-//        }
+        }
       }
     }
   }
