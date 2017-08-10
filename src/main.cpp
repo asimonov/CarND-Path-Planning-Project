@@ -90,6 +90,18 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         std::stringstream ss;
         ss << "in_traj_" << ts_ms();
         dump_trajectory(in_traj, ss.str());
+
+        // cut old trajectory to this size
+        const double keep_old_trajectory_secs = 1.0;
+        vector<double> x, y;
+        double i=0;
+        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
+        {
+          x.push_back(previous_path_x[i]);
+          y.push_back(previous_path_y[i]);
+          i++;
+        }
+        in_traj = Trajectory(x,y,dt_s);
         Car car(car_x, car_y, deg2rad(car_yaw), car_speed, in_traj);
 
         // log event
@@ -100,33 +112,20 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
              <<" yaw="<<car_yaw <<" v="<<car_speed
              << endl;
 
+
         // plan trajectory (x,y points spaced at dt_s)
         SensorFusion sf;
         JMTPlanner planner;
         Trajectory tr = car.getPrevTraj();
-        double t = tr.getTotalT();
-        if (t < 0.5) {
-          cout << "t="<< t << "(n="<<tr.getSize()<<") extending.." << endl;
+//        double t = tr.getTotalT();
+//        if (t < 1.0) {
+          cout << "t="<< tr.getTotalT() << "(n="<<tr.getSize()<<") extending.." << endl;
           tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
-          std::stringstream ss;
-          ss << "out_traj_" << ts_ms();
-          dump_trajectory(tr, ss.str());
-        }
-//        Trajectory tr = route.get_next_segments(c., 15);
-//
-//        if (planned_n < time_horizon_s/dt_s) {
-//          Trajectory tr_d;
-//          for (int i=0; i<tr.getX().size(); i++) {
-//            auto fr = route.get_frenet(tr.getX()[i], tr.getY()[i], c.getYaw());
-//            fr[1] += 2.0; // be in middle of left lane
-//            auto xy = route.get_XY(fr[0], fr[1]);
-//            tr_d.add(xy[0], xy[1]);
-//          }
-//          tr_d.respace_at_constant_speed(dt_s, target_speed_ms);
-//          tr = tr_d;
+          std::stringstream ss2;
+          ss2 << "out_traj_" << ts_ms();
+          dump_trajectory(tr, ss2.str());
 //        }
-//        else
-//          tr = prev_tr;
+
 
         // send control message back to the simulator
         json msgJson;
@@ -162,6 +161,23 @@ int main() {
 
   // read waypoints data from file
   route.read_data("../data/highway_map.csv");
+  // debug output
+  ofstream f("track_debug.csv", ofstream::out);
+  double d = 6.0;
+  auto prev_xy = route.get_XY(0.0, d);
+  double ds = 0.05;
+  for (double s=ds; s<route.get_max_s()+2.; s=s+ds)
+  {
+    auto xy = route.get_XY(s, d);
+    double yaw = angle(prev_xy[0], prev_xy[1], xy[0], xy[1]);
+    auto fr = route.get_frenet(xy[0], xy[1],yaw);
+    auto xy2 = route.get_XY(fr[0],fr[1]);
+    f<<s<<" "<<xy[0]<<" "<<xy[1]<<" "<<rad2deg(yaw)<<" "<<fr[0]<<" "<<fr[1]<<" "<<xy2[0]<<" "<<xy2[1]<<endl;
+    prev_xy = xy;
+  }
+  f.close();
+  //auto fr = route.get_frenet(955.43, 1126.02, 0);
+  //auto fr = route.get_frenet(930.947, 1129.04, 0);
 
   h.onMessage(onMessage);
 

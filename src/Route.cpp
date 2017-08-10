@@ -8,7 +8,8 @@
 #include <sstream>
 #include "coordinate_utils.h"
 #include <cassert>
-#include "spline.h"
+#include "Car.h"
+
 
 using namespace std;
 
@@ -19,9 +20,11 @@ double Route::get_max_s() const
 {
   // The max s value before wrapping around the track back to 0
   double max_s = 6945.554;
-  int n = _waypoints_s.size();
-  double last_dist = euclidian_distance(_waypoints_x[n-1], _waypoints_y[n-1], _waypoints_x[0], _waypoints_y[0]);
-  max_s = _waypoints_s[n-1] + last_dist;
+
+//  int n = _waypoints_s.size();
+//  double last_dist = euclidian_distance(_waypoints_x[n-1], _waypoints_y[n-1], _waypoints_x[0], _waypoints_y[0]);
+//  max_s = _waypoints_s[n-1] + last_dist;
+
   return max_s;
 }
 
@@ -47,13 +50,21 @@ void Route::read_data(string map_file_) {
     assert(_waypoints_x.size() == _waypoints_y.size());
     _waypoints_s.push_back(s);
     assert(_waypoints_x.size() == _waypoints_s.size());
-    //_waypoints_dx.push_back(d_x);
-    //assert(_waypoints_x.size() == _waypoints_dx.size());
-    //_waypoints_dy.push_back(d_y);
-    //assert(_waypoints_x.size() == _waypoints_dy.size());
+    _waypoints_dx.push_back(d_x);
+    assert(_waypoints_x.size() == _waypoints_dx.size());
+    _waypoints_dy.push_back(d_y);
+    assert(_waypoints_x.size() == _waypoints_dy.size());
   }
 
-  smooth_using_splines();
+  //smooth_using_splines();
+  generate_splines();
+}
+
+void Route::generate_splines() {
+  _spline_x.set_points(_waypoints_s, _waypoints_x);
+  _spline_y.set_points(_waypoints_s, _waypoints_y);
+  _spline_dx.set_points(_waypoints_s, _waypoints_dx);
+  _spline_dy.set_points(_waypoints_s, _waypoints_dy);
 }
 
 int Route::cyclic_index(int i) const
@@ -218,16 +229,17 @@ int Route::next_waypoint(double x, double y, double yaw) const {
 
   double heading = angle(x, y, map_x, map_y);
 
-  double angl = fabs(yaw - heading);
+  double phi = fabs(yaw - heading);
 
-  if (angl > pi() / 4)
+  // what if closest waypoint is behind?
+  if (phi > pi() / 4)
     closestWaypoint++;
 
   return cyclic_index(closestWaypoint);
 }
 
 
-// internal version of get_frenet that is also used to re-generate s,d from 'splined' x,y
+// internal version of get_frenet
 std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
 {
   int prev_wp;
@@ -242,7 +254,23 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
   double proj_norm = (x_x * n_x + x_y * n_y) / (n_x * n_x + n_y * n_y);
   double proj_x = proj_norm * n_x;
   double proj_y = proj_norm * n_y;
+//  double proj_len = sqrt(proj_x*proj_x + proj_y*proj_y);
+  double sign_len = (x_x * n_x + x_y * n_y) / sqrt(n_x * n_x + n_y * n_y);
 
+  double frenet_s = _waypoints_s[prev_wp];
+  double s_dist = _waypoints_s[next_wp] - _waypoints_s[prev_wp];
+  if (s_dist<0)
+    s_dist += get_max_s();
+  double xy_dist = euclidian_distance(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[next_wp], _waypoints_y[next_wp]);
+  frenet_s += (s_dist / xy_dist) * sign_len;
+
+  double x_adj = _spline_x(frenet_s);
+  double y_adj = _spline_y(frenet_s);
+
+  double frenet_d = euclidian_distance(x, y, x_adj, y_adj);
+
+  return {frenet_s, frenet_d};
+/*
   double frenet_d = euclidian_distance(x_x, x_y, proj_x, proj_y);
 
   //see if d value is positive or negative by comparing it to a center point
@@ -260,10 +288,10 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
   for (int i = 0; i < prev_wp; i++) {
     frenet_s += euclidian_distance(_waypoints_x[i], _waypoints_y[i], _waypoints_x[i + 1], _waypoints_y[i + 1]);
   }
-
   frenet_s += euclidian_distance(0, 0, proj_x, proj_y);
 
   return {frenet_s, frenet_d};
+*/
 }
 
 
@@ -288,6 +316,7 @@ std::vector<double> Route::get_XY(double s, double d) const
   prev_wp = cyclic_index(prev_wp); // to fix bug when s=0 for example
 
   double heading = angle(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[wp2], _waypoints_y[wp2]);
+/*
   // the x,y,s along the segment
   double seg_s = (s - _waypoints_s[prev_wp]);
 
@@ -298,6 +327,9 @@ std::vector<double> Route::get_XY(double s, double d) const
 
   double x = seg_x + d * cos(perp_heading);
   double y = seg_y + d * sin(perp_heading);
+*/
+  double x = _spline_x(s) + d * _spline_dx(s);
+  double y = _spline_y(s) + d * _spline_dy(s);
 
   return {x, y};
 }

@@ -78,6 +78,7 @@ Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) 
   assert(_acceleration.size()==0 || _acceleration.size()-1==_jerk.size());
 }
 
+
 std::vector<double> Trajectory::getX() const {
   return _x_vals;
 }

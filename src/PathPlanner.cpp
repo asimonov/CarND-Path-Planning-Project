@@ -114,9 +114,11 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
     if (len>3)
       curr_jerk = trajectory.getFinalJerk();
   }
-  auto fr = route.get_frenet(curr_x, curr_y, car.getYaw());
+  auto fr = route.get_frenet(curr_x, curr_y, curr_yaw);
   double curr_s = fr[0];
   double curr_d = fr[1];
+  if (curr_d>12)
+    cout<<" HUGE D "<<endl;
 
 
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
@@ -130,9 +132,9 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
     s_values.push_back( (i+1)*5 );
   vector<double> d_values = {2.0, 6.0, 9.5}; // centers of left, center and right lanes
 
-  T_values = {20};
-  s_values = {200};
-  d_values = {6};
+  T_values = {T};
+  s_values = {100};
+  d_values = {2};
 
   // generate trajectories and find one with minimal cost
   Trajectory best_trajectory = trajectory;
@@ -144,8 +146,8 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
       for (double sample_d : d_values)
       {
         // use JMT to find good trajectory in s
-        double v_s = curr_speed * cos(curr_yaw);
-        double a_s = curr_acceleration * cos(curr_yaw);
+        double v_s = curr_speed;// * cos(curr_yaw);
+        double a_s = curr_acceleration;// * cos(curr_yaw);
         double target_v_s = target_speed;
         double target_a_s = 0.0;
         JerkMinimizingPolynomial jmt_s({0,        v_s,        a_s},
@@ -153,8 +155,8 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
                                        sample_t);
 
         // use JMT to find good trajectory in d
-        double v_d = curr_speed * sin(curr_yaw);
-        double a_d = curr_acceleration * sin(curr_yaw);
+        double v_d = 0.0;//curr_speed * sin(curr_yaw);
+        double a_d = 0.0;//curr_acceleration * sin(curr_yaw);
         double target_v_d = 0.0;
         double target_a_d = 0.0;
         JerkMinimizingPolynomial jmt_d({curr_d,   v_d,        a_d},
@@ -165,12 +167,18 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
         Trajectory sample_tr = trajectory; // copy existing trajectory
         double dt = trajectory.getDt();
         int n_steps = floor(sample_t / dt);
+        bool first = true;
         for (int j=0;j<n_steps; j++)
         {
           double s = curr_s + jmt_s.eval(j*dt);
           double d = jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);
+          if (first) {
+            cout<<"old s: "<<curr_s<<" new s: "<<s<<" old d: "<<curr_d<<" new d: "<<d<<endl;
+            cout<<"old x: "<<curr_x<<" new x: "<<xy[0]<<" old y: "<<curr_y<<" new y: "<<xy[1]<<endl;
+            first = false;
+          }
         }
         // estimate trajectory cost and update if it's best we've seen so far
         double cost = sample_tr.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);

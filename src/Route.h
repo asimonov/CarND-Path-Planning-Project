@@ -7,9 +7,8 @@
 
 #include <string>
 #include <vector>
-
 #include "Trajectory.h"
-#include "Car.h"
+#include "spline.h"
 
 class Route {
 public:
@@ -33,8 +32,8 @@ private:
     std::vector<double> _waypoints_x;
     std::vector<double> _waypoints_y;
     std::vector<double> _waypoints_s;
-    //std::vector<double> _waypoints_dx;
-    //std::vector<double> _waypoints_dy;
+    std::vector<double> _waypoints_dx;
+    std::vector<double> _waypoints_dy;
 
     int closest_waypoint(double x, double y) const;
     int next_waypoint(double x, double y, double yaw) const;
@@ -43,6 +42,14 @@ private:
     std::vector<double> get_frenet2(double x, double y, int next_wp) const;
 
     void smooth_using_splines();
+
+    tk::spline _spline_x;
+    tk::spline _spline_y;
+    tk::spline _spline_dx;
+    tk::spline _spline_dy;
+    void generate_splines();
+
+
     int cyclic_index(int i) const;
 };
 
