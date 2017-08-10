@@ -117,8 +117,6 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
   auto fr = route.get_frenet(curr_x, curr_y, curr_yaw);
   double curr_s = fr[0];
   double curr_d = fr[1];
-  if (curr_d>12)
-    cout<<" HUGE D "<<endl;
 
 
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
@@ -168,7 +166,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
         double dt = trajectory.getDt();
         int n_steps = floor(sample_t / dt);
         bool first = true;
-        for (int j=0;j<n_steps; j++)
+        for (int j=1;j<n_steps; j++)
         {
           double s = curr_s + jmt_s.eval(j*dt);
           double d = jmt_d.eval(j*dt);
