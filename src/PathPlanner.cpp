@@ -121,8 +121,8 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
 
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
   vector<double> T_values = {T};
-  // add more time horizons to 7.5 seconds extra, in steps of 0.5 secs
-  for (int i=0; i<15; i++)
+  // add more time horizons to 8 seconds extra, in steps of 0.5 secs
+  for (int i=0; i<16; i++)
     T_values.push_back( T + (i+1)*0.5 );
   vector<double> s_values = {};
   // add more s horizons (from current s) to 200 meters ahead, in steps of 10 meters
@@ -132,11 +132,11 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
 
 //  T_values = {T};
 //  s_values = {100};
-  d_values = {2};
+  d_values = {curr_d};
 
   // generate trajectories and find one with minimal cost
   Trajectory best_trajectory = trajectory;
-  double best_cost = best_trajectory.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
+  double best_cost = 1e+10; // unrealistically bad cost
   for (double sample_t : T_values)
   {
     for (double sample_s : s_values)
@@ -169,7 +169,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
         for (int j=1;j<n_steps; j++)
         {
           double s = curr_s + jmt_s.eval(j*dt);
-          double d = jmt_d.eval(j*dt);
+          double d = curr_d;//jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);
 //          if (first) {
@@ -179,7 +179,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
 //          }
         }
         // estimate trajectory cost and update if it's best we've seen so far
-        double cost = sample_tr.getCost(T, target_speed, max_speed, max_acceleration, max_jerk);
+        double cost = sample_tr.getCost(sample_t, sample_s, target_speed, max_speed, max_acceleration, max_jerk);
 //cout<<sample_tr.getMaxJerk()<<" t="<<sample_t<<" s="<<sample_s<<" d="<<sample_d<<endl;
         if (cost < best_cost)
         {

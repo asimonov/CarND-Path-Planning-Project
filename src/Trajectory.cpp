@@ -272,47 +272,103 @@ double Trajectory::getTotalSquaredJerk() const
   return res;
 }
 
-double Trajectory::getCost(double target_time, double target_speed, double max_speed, double max_acceleration, double max_jerk) const {
-  double res = 0.0;
-  double max_cost = std::numeric_limits<double>::max();
+/*
+ * A function that returns a value between 0 and 1 for x in the
+        range [0, infinity] and -1 to 1 for x in the range [-infinity, infinity].
+ */
+double logistic(double x)
+{
+  return 2.0 / (1 + exp(-x)) - 1.0;
+}
 
+
+double Trajectory::getCost(double target_time, double target_distance, double target_speed,
+                           double max_speed, double max_acceleration, double max_jerk) const {
+  double total_cost = 0.0;
+  double MIN_COST = -1.0;
+  double MAX_COST =  1.0;
+
+  assert(_dt>0);
+  // to avoid dealing with empty trajectories/div by zero
   if (_jerk.size()==0)
-    return max_cost;
+    return 100 * MIN_COST;
 
-  // penalize going over the limits
-//  if (fabs(getMaxJerk()) > max_jerk)
-//    return max_cost;
-//  if (fabs(getMaxAcceleration()) > max_acceleration)
-//    return max_cost;
-  if (getMaxSpeed() > max_speed)
-    return max_cost;
-  if (getMinSpeed() < 0.0)
-    return max_cost;
-//  if (target_time > getTotalT())
-//    return max_cost;
 
-  // time -> target
-  double t = getTotalT() - target_time;
-  res += fabs(t) / sqrt(1+t*t);
-  // distance -> max
-//  double d = getTotalDistance();
-//  if (d>1e-6)
-//    res += 1 / d;
-  // speed -> target
-  double v = getFinalSpeed() - target_speed;
-  res += fabs(v) / sqrt(1+v*v);
-  // average speed -> max
-  double av = getTotalDistance() / getTotalT();
-  res += 1 / av;
-  // average square jerk -> min
-  if (_jerk.size() > 0) {
-    double aj2 = 0.0;
-    for (int i = 0; i < _jerk.size(); i++)
-      aj2 += _jerk[i] * _jerk[i];
-    aj2 /= _jerk.size(); // average jerk
-    aj2 /= max_jerk*max_jerk; // scale down using max jerk
-    res += aj2;
-  }
+  // Penalize duration which is longer or shorter than the target duration
+  double target_time_cost = logistic( fabs(getTotalT()-target_time) / target_time);
+  double target_time_weight = 1.0;
+  total_cost += target_time_weight * target_time_cost;
 
-  return res;
+  // Penalize distance which is longer or shorter than the target distance
+  double target_distance_cost = logistic( fabs(getTotalDistance()-target_distance) / target_distance);
+  double target_distance_weight = 1.0;
+  total_cost += target_distance_weight * target_distance_cost;
+
+
+  // Penalise negative speeds
+  double min_speed_cost = MIN_COST;
+  if (_min_speed < 0.0)
+    min_speed_cost = MAX_COST;
+  double min_speed_weight = 500.0;
+  total_cost += min_speed_weight * min_speed_cost;
+
+  // Penalise going over speed limit
+  double speed_limit_cost = MIN_COST;
+  if (_max_speed > max_speed)
+    speed_limit_cost = MAX_COST;
+  double speed_limit_weight = 200.0;
+  total_cost += speed_limit_weight * speed_limit_cost;
+
+  // Reward higher average speeds.
+  double avg_speed = getTotalDistance() / getTotalT();
+  double avg_speed_cost = logistic( 2.0*(avg_speed) / max_speed);
+  double avg_speed_weight = 100.0;
+  total_cost += avg_speed_weight * avg_speed_cost;
+
+  // Reward trajectories with final speed closer to target speed
+  double final_speed = getFinalSpeed();
+  double final_speed_cost = logistic(2.0*(target_speed - final_speed) / target_speed);
+  double final_speed_weight = 1.0;
+  total_cost += final_speed_weight * final_speed_cost;
+
+
+  // penalize trajectories with high max acceleration
+  double max_acceleration_cost = MIN_COST;
+  if (fabs(getMaxAcceleration()) > max_acceleration)
+    max_acceleration_cost = MAX_COST;
+  double max_acceleration_weight = 1.0;
+  total_cost += max_acceleration_weight * max_acceleration_cost;
+
+  // penalize trajectories with high total acceleration
+  double total_acceleration = 0.0;
+  for (int i=0;i<_acceleration.size(); i++)
+    total_acceleration += fabs(_acceleration[i]*_dt);
+  double acceleration_per_second = total_acceleration / getTotalT();
+  double total_acceleration_cost = logistic(acceleration_per_second / max_acceleration );
+  double total_acceleration_weight = 1.0;
+  total_cost += total_acceleration_weight * total_acceleration_cost;
+
+
+  // penalize trajectories with high max jerk
+  double max_jerk_cost = MIN_COST;
+  if (fabs(getMaxJerk()) > max_jerk)
+    max_jerk_cost = MAX_COST;
+  double max_jerk_weight = 1.0;
+  total_cost += max_jerk_weight * max_jerk_cost;
+
+  // penalize trajectories with high total jerk
+  double total_jerk = 0.0;
+  for (int i=0;i<_jerk.size(); i++)
+    total_jerk += fabs(_jerk[i]*_dt);
+  double jerk_per_second = total_jerk / getTotalT();
+  double total_jerk_cost = logistic(jerk_per_second / max_jerk );
+
+
+  //Binary cost function which penalizes collisions.
+  // (collision_cost,    1),
+
+  //Penalizes getting close to other vehicles.
+  //(buffer_cost,       1),
+
+  return total_cost;
 }

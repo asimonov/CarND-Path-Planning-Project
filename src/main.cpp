@@ -79,7 +79,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
-        const double time_horizon_s = 3.0; // planning time horizon, in seconds
+        const double time_horizon_s = 1.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
         const double target_speed = mph2ms(46.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
@@ -92,7 +92,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         dump_trajectory(in_traj, ss.str());
 
         // cut old trajectory to this size
-        const double keep_old_trajectory_secs = 10.0;
+        const double keep_old_trajectory_secs = 50.0;
         vector<double> x, y;
         double i=0;
         while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
@@ -118,7 +118,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         JMTPlanner planner;
         Trajectory tr = car.getPrevTraj();
         double t = tr.getTotalT();
-        if (t < 1.5) {
+        if (t < 1.0) {
           cout << "t="<< tr.getTotalT() << "(n="<<tr.getSize()<<") extending.." << endl;
           tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
