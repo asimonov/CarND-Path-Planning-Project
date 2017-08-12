@@ -168,7 +168,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
         bool first = true;
         for (int j=1;j<n_steps; j++)
         {
-          double s = curr_s + jmt_s.eval(j*dt);
+          double s = curr_s + jmt_s.eval(double(j)*dt);
           double d = curr_d;//jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);

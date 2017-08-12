@@ -18,6 +18,7 @@ public:
     Trajectory();
     Trajectory(double dt);
     Trajectory(std::vector<double> x, std::vector<double> y, double dt);
+    //Trajectory(const Trajectory& other) = delete;
 
     void add(double x, double y);
 

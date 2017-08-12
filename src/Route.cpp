@@ -213,21 +213,21 @@ void Route::smooth_using_splines()
 
 // find next n waypoints to follow
 // given car position
-Trajectory Route::get_next_segments(double x, double y, double yaw, int n) const
-{
-  Trajectory tr;
-
-  long next_wp = next_waypoint(x, y, yaw);
-  //next_wp = cyclic_index(next_wp-1);
-
-  for (int i=0; i<n; i++)
-  {
-    tr.add(_waypoints_x[next_wp], _waypoints_y[next_wp]);
-    next_wp = cyclic_index(next_wp + 1);
-  }
-
-  return tr;
-}
+//Trajectory Route::get_next_segments(double x, double y, double yaw, int n) const
+//{
+//  Trajectory tr;
+//
+//  long next_wp = next_waypoint(x, y, yaw);
+//  //next_wp = cyclic_index(next_wp-1);
+//
+//  for (int i=0; i<n; i++)
+//  {
+//    tr.add(_waypoints_x[next_wp], _waypoints_y[next_wp]);
+//    next_wp = cyclic_index(next_wp + 1);
+//  }
+//
+//  return tr;
+//}
 
 
 int Route::closest_waypoint(double x, double y) const

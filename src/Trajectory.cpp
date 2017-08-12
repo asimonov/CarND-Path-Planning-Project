@@ -40,6 +40,15 @@ Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) 
   _x_vals = x;
   _y_vals = y;
   _dt = dt;
+
+  _total_distance = 0.0;
+  _min_speed = numeric_limits<double>::max();
+  _max_speed = numeric_limits<double>::min();
+  _min_acceleration = numeric_limits<double>::max();
+  _max_acceleration = numeric_limits<double>::min();
+  _min_jerk = numeric_limits<double>::max();
+  _max_jerk = numeric_limits<double>::min();
+
   int n = _x_vals.size();
   _total_distance = 0.0;
   for (int i=1;i<n;i++) {
@@ -308,6 +317,13 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += target_distance_weight * target_distance_cost;
   _cost_dump_str += "target distance cost: "+to_string(target_distance_cost)+"\n";
 
+  // Penalize longer trajectories
+  double total_time_cost = logistic( getTotalT() / 7.0);
+  double total_time_weight = 1.0;
+  total_cost += total_time_weight * total_time_cost;
+  _cost_dump_str += "total time cost: "+to_string(total_time_cost)+"\n";
+
+
   // Penalise negative speeds
   double min_speed_cost = MIN_COST;
   if (_min_speed < 0.0)
@@ -338,6 +354,7 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += final_speed_weight * final_speed_cost;
   _cost_dump_str += "final speed cost: "+to_string(final_speed_cost)+" ("+to_string(final_speed)+")\n";
 
+
   // penalize trajectories with high max acceleration
   double max_acceleration_cost = MIN_COST;
   if (fabs(getMaxAcceleration()) > max_acceleration)
@@ -356,6 +373,7 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += avg_acceleration_weight * avg_acceleration_cost;
   _cost_dump_str += "avg acceleration cost: "+to_string(avg_acceleration_cost)+" ("+to_string(acceleration_per_second)+")\n";
 
+
   // penalize trajectories with high max jerk
   double max_jerk_cost = MIN_COST;
   if (fabs(getMaxJerk()) > max_jerk)
@@ -373,6 +391,7 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   double avg_jerk_weight = 1.0;
   total_cost += avg_jerk_weight * avg_jerk_cost;
   _cost_dump_str += "avg jerk cost: "+to_string(avg_jerk_cost)+" ("+to_string(jerk_per_second)+")\n";
+
 
   _cost_dump_str += "TOTAL cost: "+to_string(total_cost)+"\n";
 
