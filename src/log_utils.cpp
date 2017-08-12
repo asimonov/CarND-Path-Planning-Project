@@ -41,18 +41,3 @@ std::string ts_ms_str()
   return ss.str();
 }
 
-void dump_trajectory(const Trajectory& tr, std::string filename)
-{
-  ofstream f(filename.c_str(), ofstream::out);
-
-  string line;
-  vector<double> x = tr.getX();
-  vector<double> y = tr.getY();
-  int n = x.size();
-  double dt = tr.getDt();
-  for (int i=0;i<n;i++)
-  {
-    f<<(i*dt)<<" "<<x[i]<<" "<<y[i]<<endl;
-  }
-
-}

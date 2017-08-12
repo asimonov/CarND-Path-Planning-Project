@@ -6,6 +6,7 @@
 #include <cassert>
 #include "coordinate_utils.h"
 #include <limits>
+#include <fstream>
 
 using namespace std;
 
@@ -293,17 +294,19 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   if (_jerk.size()==0)
     return 100 * MIN_COST;
 
+  _cost_dump_str += "COST COMPONENTS\n";
 
   // Penalize duration which is longer or shorter than the target duration
   double target_time_cost = logistic( fabs(getTotalT()-target_time) / target_time);
   double target_time_weight = 1.0;
   total_cost += target_time_weight * target_time_cost;
+  _cost_dump_str += "target time cost: "+to_string(target_time_cost)+"\n";
 
   // Penalize distance which is longer or shorter than the target distance
   double target_distance_cost = logistic( fabs(getTotalDistance()-target_distance) / target_distance);
   double target_distance_weight = 1.0;
   total_cost += target_distance_weight * target_distance_cost;
-
+  _cost_dump_str += "target distance cost: "+to_string(target_distance_cost)+"\n";
 
   // Penalise negative speeds
   double min_speed_cost = MIN_COST;
@@ -311,6 +314,7 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
     min_speed_cost = MAX_COST;
   double min_speed_weight = 1.0;
   total_cost += min_speed_weight * min_speed_cost;
+  _cost_dump_str += "min speed cost: "+to_string(min_speed_cost)+"\n";
 
   // Penalise going over speed limit
   double speed_limit_cost = MIN_COST;
@@ -318,19 +322,21 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
     speed_limit_cost = MAX_COST;
   double speed_limit_weight = 1.0;
   total_cost += speed_limit_weight * speed_limit_cost;
+  _cost_dump_str += "speed limit cost: "+to_string(speed_limit_cost)+"\n";
 
   // Reward higher average speeds.
   double avg_speed = getTotalDistance() / getTotalT();
   double avg_speed_cost = logistic( 2.0*(avg_speed) / max_speed);
   double avg_speed_weight = 1.0;
   total_cost += avg_speed_weight * avg_speed_cost;
+  _cost_dump_str += "avg speed cost: "+to_string(avg_speed_cost)+" ("+to_string(avg_speed)+")\n";
 
   // Reward trajectories with final speed closer to target speed
   double final_speed = getFinalSpeed();
   double final_speed_cost = logistic(2.0*(target_speed - final_speed) / target_speed);
   double final_speed_weight = 1.0;
   total_cost += final_speed_weight * final_speed_cost;
-
+  _cost_dump_str += "final speed cost: "+to_string(final_speed_cost)+" ("+to_string(final_speed)+")\n";
 
   // penalize trajectories with high max acceleration
   double max_acceleration_cost = MIN_COST;
@@ -338,16 +344,17 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
     max_acceleration_cost = MAX_COST;
   double max_acceleration_weight = 1.0;
   total_cost += max_acceleration_weight * max_acceleration_cost;
+  _cost_dump_str += "max acceleration cost: "+to_string(max_acceleration_cost)+" ("+to_string(fabs(getMaxAcceleration()))+")\n";
 
-  // penalize trajectories with high total acceleration
+  // penalize trajectories with high avg acceleration
   double total_acceleration = 0.0;
   for (int i=0;i<_acceleration.size(); i++)
     total_acceleration += fabs(_acceleration[i]*_dt);
   double acceleration_per_second = total_acceleration / getTotalT();
-  double total_acceleration_cost = logistic(acceleration_per_second / max_acceleration );
-  double total_acceleration_weight = 1.0;
-  total_cost += total_acceleration_weight * total_acceleration_cost;
-
+  double avg_acceleration_cost = logistic(acceleration_per_second / max_acceleration );
+  double avg_acceleration_weight = 1.0;
+  total_cost += avg_acceleration_weight * avg_acceleration_cost;
+  _cost_dump_str += "avg acceleration cost: "+to_string(avg_acceleration_cost)+" ("+to_string(acceleration_per_second)+")\n";
 
   // penalize trajectories with high max jerk
   double max_jerk_cost = MIN_COST;
@@ -355,14 +362,19 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
     max_jerk_cost = MAX_COST;
   double max_jerk_weight = 1.0;
   total_cost += max_jerk_weight * max_jerk_cost;
+  _cost_dump_str += "max jerk cost: "+to_string(max_jerk_cost)+" ("+to_string(getMaxJerk())+")\n";
 
-  // penalize trajectories with high total jerk
+  // penalize trajectories with high avg jerk
   double total_jerk = 0.0;
   for (int i=0;i<_jerk.size(); i++)
     total_jerk += fabs(_jerk[i]*_dt);
   double jerk_per_second = total_jerk / getTotalT();
-  double total_jerk_cost = logistic(jerk_per_second / max_jerk );
+  double avg_jerk_cost = logistic(jerk_per_second / max_jerk );
+  double avg_jerk_weight = 1.0;
+  total_cost += avg_jerk_weight * avg_jerk_cost;
+  _cost_dump_str += "avg jerk cost: "+to_string(avg_jerk_cost)+" ("+to_string(jerk_per_second)+")\n";
 
+  _cost_dump_str += "TOTAL cost: "+to_string(total_cost)+"\n";
 
   //Binary cost function which penalizes collisions.
   // (collision_cost,    1),
@@ -371,4 +383,66 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   //(buffer_cost,       1),
 
   return total_cost;
+}
+
+
+void Trajectory::dump_to_file(const std::string& filename) const
+{
+  ofstream f(filename.c_str(), ofstream::out);
+
+  f<<"t,x,y"<<endl;
+  int n = _x_vals.size();
+  for (int i=0;i<n;i++)
+  {
+    f<<(i*_dt)<<" "<<_x_vals[i]<<" "<<_y_vals[i]<<endl;
+  }
+
+  f<<endl;
+
+  f<<"dist"<<endl;
+  n = _dist.size();
+  for (int i=0;i<n;i++)
+    f<<_dist[i]<<endl;
+
+  f<<endl;
+
+  f<<"speed"<<endl;
+  n = _speed.size();
+  for (int i=0;i<n;i++)
+    f<<_speed[i]<<endl;
+
+  f<<endl;
+
+  f<<"acceleration"<<endl;
+  n = _acceleration.size();
+  for (int i=0;i<n;i++)
+    f<<_acceleration[i]<<endl;
+
+  f<<endl;
+
+  f<<"jerk"<<endl;
+  n = _jerk.size();
+  for (int i=0;i<n;i++)
+    f<<_jerk[i]<<endl;
+
+  f<<endl;
+
+  f<<"heading"<<endl;
+  n = _heading.size();
+  for (int i=0;i<n;i++)
+    f<<_heading[i]<<endl;
+
+  f<<endl;
+
+  f<<"total time/distance: "<<getTotalT()<<" "<<_total_distance<<endl;
+  f<<"min/max:"<<endl;
+  f<<"speed: "<<_min_speed<<" "<<_max_speed<<endl;
+  f<<"acceleration: "<<_min_acceleration<<" "<<_max_acceleration<<endl;
+  f<<"jerk: "<<_min_jerk<<" "<<_max_jerk<<endl;
+
+  f<<endl;
+
+  f<<_cost_dump_str<<endl;
+
+  f.close();
 }

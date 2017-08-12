@@ -6,6 +6,8 @@
 #define PATH_PLANNING_TRAJECTORY_H
 
 #include <vector>
+#include <sstream>
+#include <string>
 
 // this is simplified trajectory class.
 // it simply tracks x,y coordinates
@@ -51,6 +53,8 @@ public:
 
     double getCost(double target_time, double target_distance, double target_speed,
                    double max_speed, double max_acceleration, double max_jerk) const;
+    void dump_to_file(const std::string& filename) const;
+
 private:
     std::vector<double> _x_vals; // x coordinate, meters
     std::vector<double> _y_vals; // y coordinate, meters
@@ -67,6 +71,7 @@ private:
     double              _max_jerk;
     std::vector<double> _heading; // heading between adjacent (x,y), from beginning of the segment
     double              _dt; // discretisation time interval, seconds
+    mutable std::string         _cost_dump_str;
 };
 
 

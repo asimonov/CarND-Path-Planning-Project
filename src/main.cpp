@@ -81,7 +81,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const double dt_s = 0.02; // discretisation time length, in seconds
         const double time_horizon_s = 3.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(46.0); // target speed in meter/second
+        const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -89,7 +89,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
         std::stringstream ss;
         ss << "in_traj_" << ts_ms();
-        dump_trajectory(in_traj, ss.str());
+        in_traj.dump_to_file(ss.str());
 
         // cut old trajectory to this size
         const double keep_old_trajectory_secs = 50.0;
@@ -123,7 +123,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
-          dump_trajectory(tr, ss2.str());
+          tr.dump_to_file(ss2.str());
         }
 
 
@@ -165,7 +165,7 @@ int main() {
   ofstream f("track_debug.csv", ofstream::out);
   double d = 6.0;
   auto prev_xy = route.get_XY(0.0, d);
-  double ds = 0.05;
+  double ds = 0.5;
   for (double s=ds; s<route.get_max_s()+2.; s=s+ds)
   {
     auto xy = route.get_XY(s, d);
@@ -176,7 +176,8 @@ int main() {
     prev_xy = xy;
   }
   f.close();
-  //auto fr = route.get_frenet(955.43, 1126.02, 0);
+  //auto xy = route.get_XY(	6938.5, 6.0);
+  //auto fr = route.get_frenet(xy[0], xy[1], deg2rad(-2));
   //auto fr = route.get_frenet(930.947, 1129.04, 0);
 
   h.onMessage(onMessage);

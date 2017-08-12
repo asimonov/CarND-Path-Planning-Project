@@ -61,10 +61,38 @@ void Route::read_data(string map_file_) {
 }
 
 void Route::generate_splines() {
-  _spline_x.set_points(_waypoints_s, _waypoints_x);
-  _spline_y.set_points(_waypoints_s, _waypoints_y);
-  _spline_dx.set_points(_waypoints_s, _waypoints_dx);
-  _spline_dy.set_points(_waypoints_s, _waypoints_dy);
+
+  vector<double> s;
+  vector<double> x;
+  vector<double> y;
+  vector<double> dx;
+  vector<double> dy;
+
+  int n = _waypoints_s.size();
+  double prev_s = _waypoints_s[0] - get_max_s() + _waypoints_s[n-1];
+
+  s.push_back(prev_s);
+  x.push_back(_waypoints_x[n-1]);
+  y.push_back(_waypoints_y[n-1]);
+  dx.push_back(_waypoints_dx[n-1]);
+  dy.push_back(_waypoints_dy[n-1]);
+
+  s.insert(s.end(), _waypoints_s.begin(), _waypoints_s.end());
+  x.insert(x.end(), _waypoints_x.begin(), _waypoints_x.end());
+  y.insert(y.end(), _waypoints_y.begin(), _waypoints_y.end());
+  dx.insert(dx.end(), _waypoints_dx.begin(), _waypoints_dx.end());
+  dy.insert(dy.end(), _waypoints_dy.begin(), _waypoints_dy.end());
+
+  s.push_back(get_max_s());
+  x.push_back(_waypoints_x[0]);
+  y.push_back(_waypoints_y[0]);
+  dx.push_back(_waypoints_dx[0]);
+  dy.push_back(_waypoints_dy[0]);
+
+  _spline_x.set_points(s, x);
+  _spline_y.set_points(s, y);
+  _spline_dx.set_points(s, dx);
+  _spline_dy.set_points(s, dy);
 }
 
 int Route::cyclic_index(int i) const
@@ -263,11 +291,16 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
     s_dist += get_max_s();
   double xy_dist = euclidian_distance(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[next_wp], _waypoints_y[next_wp]);
   frenet_s += (s_dist / xy_dist) * sign_len;
+  if (frenet_s < (_waypoints_s[_waypoints_s.size()-1] - get_max_s()) )
+    frenet_s += get_max_s();
 
   double x_adj = _spline_x(frenet_s);
   double y_adj = _spline_y(frenet_s);
 
   double frenet_d = euclidian_distance(x, y, x_adj, y_adj);
+
+  if (frenet_s < 0 )
+    frenet_s += get_max_s();
 
   return {frenet_s, frenet_d};
 /*
@@ -308,14 +341,17 @@ std::vector<double> Route::get_XY(double s, double d) const
 {
   int prev_wp = -1;
 
-  while (s >= _waypoints_s[prev_wp + 1] && (prev_wp < (int) (_waypoints_s.size() - 1))) {
-    prev_wp++;
-  }
+  if (s>_waypoints_s[_waypoints_s.size()-1])
+    s -= get_max_s();
 
-  int wp2 = cyclic_index(prev_wp + 1);
-  prev_wp = cyclic_index(prev_wp); // to fix bug when s=0 for example
-
-  double heading = angle(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[wp2], _waypoints_y[wp2]);
+//  while (s >= _waypoints_s[prev_wp + 1] && (prev_wp < (int) (_waypoints_s.size() - 1))) {
+//    prev_wp++;
+//  }
+//
+//  int wp2 = cyclic_index(prev_wp + 1);
+//  prev_wp = cyclic_index(prev_wp); // to fix bug when s=0 for example
+//
+//  double heading = angle(_waypoints_x[prev_wp], _waypoints_y[prev_wp], _waypoints_x[wp2], _waypoints_y[wp2]);
 /*
   // the x,y,s along the segment
   double seg_s = (s - _waypoints_s[prev_wp]);
@@ -328,8 +364,12 @@ std::vector<double> Route::get_XY(double s, double d) const
   double x = seg_x + d * cos(perp_heading);
   double y = seg_y + d * sin(perp_heading);
 */
-  double x = _spline_x(s) + d * _spline_dx(s);
-  double y = _spline_y(s) + d * _spline_dy(s);
+  double x0 = _spline_x(s);
+  double y0 = _spline_y(s);
+  double dx = _spline_dx(s);
+  double dy = _spline_dy(s);
+  double x = x0 + d * dx;
+  double y = y0 + d * dy;
 
   return {x, y};
 }
