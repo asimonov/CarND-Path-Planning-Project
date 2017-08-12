@@ -309,20 +309,20 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   double min_speed_cost = MIN_COST;
   if (_min_speed < 0.0)
     min_speed_cost = MAX_COST;
-  double min_speed_weight = 500.0;
+  double min_speed_weight = 1.0;
   total_cost += min_speed_weight * min_speed_cost;
 
   // Penalise going over speed limit
   double speed_limit_cost = MIN_COST;
   if (_max_speed > max_speed)
     speed_limit_cost = MAX_COST;
-  double speed_limit_weight = 200.0;
+  double speed_limit_weight = 1.0;
   total_cost += speed_limit_weight * speed_limit_cost;
 
   // Reward higher average speeds.
   double avg_speed = getTotalDistance() / getTotalT();
   double avg_speed_cost = logistic( 2.0*(avg_speed) / max_speed);
-  double avg_speed_weight = 100.0;
+  double avg_speed_weight = 1.0;
   total_cost += avg_speed_weight * avg_speed_cost;
 
   // Reward trajectories with final speed closer to target speed

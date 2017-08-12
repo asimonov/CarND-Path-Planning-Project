@@ -79,7 +79,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
-        const double time_horizon_s = 1.0; // min planning time horizon, in seconds
+        const double time_horizon_s = 3.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
         const double target_speed = mph2ms(46.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2

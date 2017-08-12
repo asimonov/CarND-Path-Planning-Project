@@ -122,7 +122,7 @@ Trajectory JMTPlanner::extentTrajectory(const Car& car,
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
   vector<double> T_values = {T};
   // add more time horizons to 8 seconds extra, in steps of 0.5 secs
-  for (int i=0; i<16; i++)
+  for (int i=0; i<8; i++)
     T_values.push_back( T + (i+1)*0.5 );
   vector<double> s_values = {};
   // add more s horizons (from current s) to 200 meters ahead, in steps of 10 meters
