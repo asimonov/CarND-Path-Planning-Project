@@ -79,7 +79,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
-        const double time_horizon_s = 3.0; // min planning time horizon, in seconds
+        const double time_horizon_s = 5.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
         const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
@@ -92,17 +92,17 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         in_traj.dump_to_file(ss.str());
 
         // cut old trajectory to this size
-        const double keep_old_trajectory_secs = 50.0;
-        vector<double> x, y;
-        double i=0;
-        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
-        {
-          x.push_back(previous_path_x[i]);
-          y.push_back(previous_path_y[i]);
-          i++;
-        }
-        in_traj = Trajectory(x,y,dt_s);
-        Car car(car_x, car_y, deg2rad(car_yaw), car_speed, in_traj);
+//        const double keep_old_trajectory_secs = 50.0;
+//        vector<double> x, y;
+//        double i=0;
+//        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
+//        {
+//          x.push_back(previous_path_x[i]);
+//          y.push_back(previous_path_y[i]);
+//          i++;
+//        }
+//        in_traj = Trajectory(x,y,dt_s);
+        Car car(car_x, car_y, deg2rad(car_yaw), car_speed);
 
         // log event
         auto fr = route.get_frenet(car.getX(), car.getY(), car.getYaw());
@@ -112,34 +112,48 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
              <<" yaw="<<car_yaw <<" v="<<car_speed
              << endl;
 
+        // process sensor fusion
+        SensorFusion sf;
+        for (int i = 0; i < sensor_fusion.size(); i++) {
+          int id = sensor_fusion[i][0];
+          double x = sensor_fusion[i][1];
+          double y = sensor_fusion[i][2];
+          double vx = sensor_fusion[i][3];
+          double vy = sensor_fusion[i][4];
+          double s = sensor_fusion[i][5];
+          double d = sensor_fusion[i][6];
+          double yaw = atan2(vy,vx);
+          double v = sqrt(vx*vx+vy*vy);
+          Car c(x,y,yaw,v);
+          sf.add(c);
+        }
 
         // plan trajectory (x,y points spaced at dt_s)
-        SensorFusion sf;
         JMTPlanner planner;
-        Trajectory tr = car.getPrevTraj();
-        double t = tr.getTotalT();
-        if (t < 1.0) {
-          cout << "t="<< tr.getTotalT() << "(n="<<tr.getSize()<<") extending.." << endl;
-          tr = planner.extentTrajectory(car, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
+        Trajectory out_tr = in_traj;
+        double t = in_traj.getTotalT();
+        if (t < 5.0) {
+          cout << "t="<< out_tr.getTotalT() << "(n="<<out_tr.getSize()<<") extending.." << endl;
+          out_tr = planner.extendTrajectory(car, in_traj, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
-          tr.dump_to_file(ss2.str());
+          out_tr.dump_to_file(ss2.str());
         }
 
 
         // send control message back to the simulator
         json msgJson;
-        msgJson["next_x"] = tr.getX();
-        msgJson["next_y"] = tr.getY();
+        msgJson["next_x"] = out_tr.getX();
+        msgJson["next_y"] = out_tr.getY();
         auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
         // sleep for 100 ms, to match real cars latency
         this_thread::sleep_for(chrono::milliseconds(100));
 
-        int n = tr.getY().size();
+        int n = out_tr.getY().size();
         cout << ts_ms_str() << "OUT n="<<setw(5)<<n
-             << " x_s="<<setw(8)<<tr.getX()[0] <<" y_s="<<setw(8)<<tr.getY()[0]
-             << " x_f="<<tr.getX()[n-1] << " y_f="<<tr.getY()[n-1]
+             << " x_s="<<setw(8)<<out_tr.getX()[0] <<" y_s="<<setw(8)<<out_tr.getY()[0]
+             << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
              << endl;
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }

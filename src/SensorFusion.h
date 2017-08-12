@@ -5,9 +5,16 @@
 #ifndef PATH_PLANNING_SENSORFUSION_H
 #define PATH_PLANNING_SENSORFUSION_H
 
+#include <vector>
+#include "Car.h"
 
 class SensorFusion {
-
+public:
+    void add(const Car& car);
+    int size() const;
+    const Car& getCar(int i) const;
+private:
+    std::vector<Car> _cars;
 };
 
 

@@ -11,32 +11,13 @@
 using namespace std;
 
 
-Car::Car(double x, double y, double yaw, double speed, const Trajectory& prev_traj) {
+Car::Car(double x, double y, double yaw, double speed/*, const Trajectory& prev_traj*/) {
   _x = x;
   _y = y;
   _yaw = yaw;
   _speed = speed;
   assert(speed>=0);
-  _prev_traj = prev_traj;
-//  _prev_traj = Trajectory(prev_traj.getDt());
-//  // copy all points to previous trajectory from current car position till the end
-//  vector<double> tr_x = prev_traj.getX();
-//  vector<double> tr_y = prev_traj.getY();
-//  int n = tr_x.size();
-//  double min_d = 10000000000;
-//  int idx = 0;
-//  for (int i=0; i<n; i++) {
-//    double d = euclidian_distance(x,y,tr_x[i],tr_y[i]);
-//    if (d<min_d) {
-//      min_d = d;
-//      idx = i;
-//    }
-//  }
-//  for (int i=idx; i<n; i++) {
-//    _prev_traj.add(tr_x[i],tr_y[i]);
-//  }
-//  if (n)
-//    cout<<"starting with preexisting trajectory idx="<<idx<<", distance to car "<<min_d<<endl;
+//  _prev_traj = prev_traj;
 }
 
 

@@ -293,7 +293,10 @@ double logistic(double x)
 
 
 double Trajectory::getCost(double target_time, double target_distance, double target_speed,
-                           double max_speed, double max_acceleration, double max_jerk) const {
+                           double max_speed, double max_acceleration, double max_jerk,
+                           const Route& route,
+                           const SensorFusion& sf) const
+{
   double total_cost = 0.0;
   double MIN_COST = -1.0;
   double MAX_COST =  1.0;
@@ -393,14 +396,60 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   _cost_dump_str += "avg jerk cost: "+to_string(avg_jerk_cost)+" ("+to_string(jerk_per_second)+")\n";
 
 
+
+  // Binary cost function which penalizes collisions.
+  double collision_cost = MIN_COST;
+  // Penalize getting close to other vehicles.
+  double buffer_cost = MIN_COST;
+  int n = sf.size();
+  const double check_dt = 0.1;
+  const double CAR_LENGTH = 5.0;
+  const double LANE_WIDTH = 4.0;
+  const double BUFFER_LENGTH = 10.0;
+  // loop over other cars
+  for (int i=0; i<n; i++)
+  {
+    const Car& c = sf.getCar(i);
+    double x0 = c.getX();
+    double y0 = c.getY();
+    double yaw = c.getYaw();
+    double v0 = c.getSpeed();
+    auto fr = route.get_frenet(x0, y0, yaw);
+    int step_size = floor(check_dt / _dt);
+    // loop over time
+    for (int j=1; j<getSize(); j+=step_size)
+    {
+      double s0 = fr[0];
+      double s1 = s0 + (j*_dt) * v0; // project other car location at new time
+      double d0 = fr[1];
+      double d1 = d0;
+      auto xy_other = route.get_XY(s1, d1);
+      double x_ego = _x_vals[i];
+      double y_ego = _y_vals[i];
+      auto fr_ego = route.get_frenet(x_ego, y_ego, _heading[i-1]);
+      double s_dist = s1 - fr_ego[0]; // distance to them. if they are in front, then positive
+      double d_dist = d1 - fr_ego[1];
+
+      // collision
+      if (s_dist>0 && s_dist <= CAR_LENGTH && fabs(d_dist) <= LANE_WIDTH)
+        collision_cost = MAX_COST;
+      // buffer
+      if (s_dist>0 && fabs(d_dist)<= LANE_WIDTH)
+        buffer_cost += logistic( s_dist / CAR_LENGTH);
+    }
+  }
+
+  double collision_weight = 1.0;
+  total_cost += collision_weight * collision_cost;
+  _cost_dump_str += "collision cost: "+to_string(collision_cost)+" \n";
+
+  double buffer_weight = 1.0;
+  total_cost += avg_jerk_weight * avg_jerk_cost;
+  _cost_dump_str += "buffer cost: "+to_string(buffer_cost)+" \n";
+
+
+
   _cost_dump_str += "TOTAL cost: "+to_string(total_cost)+"\n";
-
-  //Binary cost function which penalizes collisions.
-  // (collision_cost,    1),
-
-  //Penalizes getting close to other vehicles.
-  //(buffer_cost,       1),
-
   return total_cost;
 }
 

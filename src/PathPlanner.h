@@ -15,12 +15,15 @@ class PathPlanner {
 public:
     // extends trajectory, i.e. set of (x,y) coordinates spaced at some time interval
     // takes:
-    //   car (with some pre-existing trajectory which can be empty),
-    //   route to follow (as road centerline coordinates),
-    //   time horizon T,
+    //   car (position, heading, velocity),
+    //   existing trajectory to be extended (can be empty),
+    //   route to follow (as road centerline coordinates, also converts from frenet to XY and vice versa),
+    //   sensor fusion structure describing the environment (e.g. other cars),
+    //   minimum planning time horizon T,
+    //   desired speed at the end of planning horizon
     //   max speed, acceleration and jerk,
-    //   sensor fusion structure describing the environment (e.g. other cars)
-    virtual Trajectory extentTrajectory(const Car& car,
+    virtual Trajectory extendTrajectory(const Car& car,
+                                        const Trajectory& trajectory, // existing trajectory to be extended
                                         const Route& route,
                                         const SensorFusion& sf,
                                         double T,
@@ -53,7 +56,8 @@ private:
 class JMTPlanner : public PathPlanner
 {
 public:
-    virtual Trajectory extentTrajectory(const Car& car,
+    virtual Trajectory extendTrajectory(const Car& car,
+                                        const Trajectory& trajectory,
                                         const Route& route,
                                         const SensorFusion& sf,
                                         double T,
