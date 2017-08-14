@@ -11,10 +11,12 @@
 using namespace std;
 
 Car::Car(int id,
-    double x, double y, double yaw,
-    double s, double d,
-    int lane,
-    double speed, double acceleration)
+         double x, double y, double yaw,
+         double s, double d,
+         int lane,
+         double speed, double acceleration,
+         double target_speed
+)
 {
   _id = id;
   _x = x;
@@ -23,17 +25,34 @@ Car::Car(int id,
   _s = s;
   _d = d;
   _lane = lane;
-  _speed = speed;
   assert(speed>=0);
+  _speed = speed;
   _acceleration = acceleration;
+  assert(target_speed>=0);
+  _target_speed = target_speed;
+  _target_lane = lane;
+  _state = "KL"; // default state
+  _predictions_dt = -1.0;
 }
 
 Car Car::advance(double T)
 {
-  Car advanced(*this);
+  Car advanced(*this); // use copy
   advanced._speed += _acceleration * T;
   advanced._s += _speed * T + 0.5 * _acceleration * T * T;
   return advanced;
+}
+
+// generate predictions
+void Car::generate_predictions(double T, double dt)
+ {
+   assert(dt>0);
+   _predictions_dt = dt;
+   _predictions.clear();
+
+  for (double t=0; t<=T; t+=dt)
+    // assume other cars do not change lanes
+    _predictions.push_back({_lane, advance(t).getS()});
 }
 
 

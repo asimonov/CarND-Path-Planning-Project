@@ -132,7 +132,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           car_d = fr[1];
         }
         int car_lane = car_d / lane_width;
-        Car ego(Car::getEgoID(), car_x, car_y, deg2rad(car_yaw), car_s, car_d, car_lane, car_speed, car_acceleration);
+        Car ego(Car::getEgoID(), car_x, car_y, deg2rad(car_yaw), car_s, car_d, car_lane, car_speed, car_acceleration, target_speed);
         double ego_time = in_traj.getTotalT();
 
         // process sensor fusion and define all other cars on the road
@@ -155,7 +155,8 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           d = fr[1];
           int lane = d / lane_width;
           double a = 0.0;
-          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a);
+          double v_target = v;
+          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target);
           // now create state of other cars as of end time of ego trajectory
           other_cars.push_back(other_car_at_zero.advance(ego_time));
         }
