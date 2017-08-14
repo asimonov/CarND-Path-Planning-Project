@@ -11,8 +11,8 @@
 
 #include "Route.h"
 #include "Car.h"
+#include "BehaviourPlanner.h"
 #include "PathPlanner.h"
-#include "SensorFusion.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -77,21 +77,35 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         //  car's s position in frenet coordinates,
         //  car's d position in frenet coordinates.]
 
+        // log event
+        auto fr = route.get_frenet(car_x, car_y, car_yaw);
+        cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
+             <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
+             <<" s="<<car_s<<"(mine: "<<fr[0]<<")"<<" d="<<car_d<<"(mine:"<<fr[1]<<")"
+             <<" yaw="<<car_yaw <<" v="<<car_speed
+             << endl;
+        // replace frenet with my own frenet estimates
+        car_s = fr[0];
+        car_d = fr[1];
+
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
+        const int    num_lanes = 3; // number of lanes we have
+        const double lane_width = 4.0; // highway lane width, in meters
         const double time_horizon_s = 5.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
         const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
-        // define car object
+        // define existing trajectory
         Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
+        // save debug trajectory info to a file
         std::stringstream ss;
         ss << "in_traj_" << ts_ms();
         in_traj.dump_to_file(ss.str());
 
-        // cut old trajectory to this size
+        // possibly cut old trajectory shorter size
 //        const double keep_old_trajectory_secs = 50.0;
 //        vector<double> x, y;
 //        double i=0;
@@ -102,31 +116,54 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 //          i++;
 //        }
 //        in_traj = Trajectory(x,y,dt_s);
-        Car car(car_x, car_y, deg2rad(car_yaw), car_speed);
 
-        // log event
-        auto fr = route.get_frenet(car.getX(), car.getY(), car.getYaw());
-        cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
-             <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
-             <<" s="<<car_s<<"(mine: "<<fr[0]<<")"<<" d="<<car_d<<"(mine:"<<fr[1]<<")"
-             <<" yaw="<<car_yaw <<" v="<<car_speed
-             << endl;
+        // define ego car object
+        double car_acceleration = 0.0;
+        if (in_traj.getSize())
+        {
+          auto xy = in_traj.getFinalXY();
+          car_x = xy[0];
+          car_y = xy[1];
+          car_yaw = in_traj.getFinalYaw();
+          car_speed = in_traj.getFinalSpeed();
+          car_acceleration = in_traj.getFinalAcceleration();
+          auto fr = route.get_frenet(car_x, car_y, car_yaw);
+          car_s = fr[0];
+          car_d = fr[1];
+        }
+        int car_lane = car_d / lane_width;
+        Car ego(Car::getEgoID(), car_x, car_y, deg2rad(car_yaw), car_s, car_d, car_lane, car_speed, car_acceleration);
+        double ego_time = in_traj.getTotalT();
 
-        // process sensor fusion
-        SensorFusion sf;
+        // process sensor fusion and define all other cars on the road
+        vector<Car> other_cars;
         for (int i = 0; i < sensor_fusion.size(); i++) {
           int id = sensor_fusion[i][0];
+          assert(id!=Car::getEgoID());
           double x = sensor_fusion[i][1];
           double y = sensor_fusion[i][2];
+
           double vx = sensor_fusion[i][3];
           double vy = sensor_fusion[i][4];
+          double v = sqrt(vx*vx+vy*vy); // assuming it is all in direction of s, none in d
+          double yaw = atan2(vy,vx);
+
           double s = sensor_fusion[i][5];
           double d = sensor_fusion[i][6];
-          double yaw = atan2(vy,vx);
-          double v = sqrt(vx*vx+vy*vy);
-          Car c(x,y,yaw,v);
-          sf.add(c);
+          auto fr = route.get_frenet(x, y, yaw);
+          s = fr[0];
+          d = fr[1];
+          int lane = d / lane_width;
+          double a = 0.0;
+          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a);
+          // now create state of other cars as of end time of ego trajectory
+          other_cars.push_back(other_car_at_zero.advance(ego_time));
         }
+
+        // use behaviour planner to decide on high level what maneuvre to execute and where to go to,
+        // with what speed and acceleration
+        BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
+        Car planned_ego_state = bp.plan(time_horizon_s, max_speed, max_acceleration, max_jerk);
 
         // plan trajectory (x,y points spaced at dt_s)
         JMTPlanner planner;
@@ -134,7 +171,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         double t = in_traj.getTotalT();
         if (t < 5.0) {
           cout << "t="<< out_tr.getTotalT() << "(n="<<out_tr.getSize()<<") extending.." << endl;
-          out_tr = planner.extendTrajectory(car, in_traj, route, sf, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
+          out_tr = planner.extendTrajectory(ego, in_traj, route, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
           out_tr.dump_to_file(ss2.str());

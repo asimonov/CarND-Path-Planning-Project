@@ -80,7 +80,6 @@ int sgn(double val) {
 Trajectory JMTPlanner::extendTrajectory(const Car& car,
                                         const Trajectory& trajectory,
                                     const Route& route,
-                                    const SensorFusion& sf,
                                     double T,
                                     double target_speed,
                                     double max_speed,
@@ -180,7 +179,7 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
         // estimate trajectory cost and update if it's best we've seen so far
         double cost = sample_tr.getCost(sample_t, sample_s, target_speed,
                                         max_speed, max_acceleration, max_jerk,
-                                        route, sf);
+                                        route);
         if (cost < best_cost)
         {
           best_trajectory = sample_tr;

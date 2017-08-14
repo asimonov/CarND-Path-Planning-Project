@@ -9,7 +9,6 @@
 #include <sstream>
 #include <string>
 #include "Route.h"
-#include "SensorFusion.h"
 
 // this is simplified trajectory class.
 // it simply tracks x,y coordinates
@@ -56,8 +55,7 @@ public:
 
     double getCost(double target_time, double target_distance, double target_speed,
                    double max_speed, double max_acceleration, double max_jerk,
-                    const Route& route,
-                    const SensorFusion& sf) const;
+                    const Route& route) const;
     void dump_to_file(const std::string& filename) const;
 
 private:

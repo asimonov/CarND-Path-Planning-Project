@@ -6,31 +6,41 @@
 #define PATH_PLANNING_CAR_H
 
 #include <vector>
-//#include "Trajectory.h"
 
 class Car {
 public:
-    // x,y are car coordinates in global system
-    Car(double x, double y, double yaw, double speed);
-    //Car(double x, double y, double yaw, double speed, const Trajectory& prev_traj);
+    static int getEgoID() {return -12345;}
+
+    // x,y are car coordinates in global system. s,d are equivalent frenet coordinates
+    Car(int id,
+        double x, double y, double yaw,
+        double s, double d,
+        int lane,
+        double speed, double acceleration);
+
+    // evolve state of this car (s,speed) to time T
+    Car advance(double T);
+
     double getX() const { return _x; }
     double getY() const { return _y; }
     double getYaw() const { return _yaw; }
     double getSpeed() const { return _speed; }
-//    Trajectory getPrevTraj() const { return _prev_traj; }
+
     // translate x,y in car coordinates into global coordinates (given car position on the map)
     std::vector<double> car2global(double x, double y) const;
     // translate x,y in map coordinates into car coordinates (given car position on the map)
     std::vector<double> global2car(double x_map, double y_map) const;
 private:
     Car();
+    int _id;
     double _x;
     double _y;
-//    double _s;
-//    double _d;
     double _yaw;
+    double _s;
+    double _d;
+    int _lane;
     double _speed;
-//    Trajectory _prev_traj;
+    double _acceleration;
 };
 
 

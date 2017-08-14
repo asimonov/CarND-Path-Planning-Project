@@ -8,7 +8,6 @@
 #include "Route.h"
 #include "Car.h"
 #include "Trajectory.h"
-#include "SensorFusion.h"
 
 
 class PathPlanner {
@@ -18,14 +17,12 @@ public:
     //   car (position, heading, velocity),
     //   existing trajectory to be extended (can be empty),
     //   route to follow (as road centerline coordinates, also converts from frenet to XY and vice versa),
-    //   sensor fusion structure describing the environment (e.g. other cars),
     //   minimum planning time horizon T,
     //   desired speed at the end of planning horizon
     //   max speed, acceleration and jerk,
     virtual Trajectory extendTrajectory(const Car& car,
                                         const Trajectory& trajectory, // existing trajectory to be extended
                                         const Route& route,
-                                        const SensorFusion& sf,
                                         double T,
                                         double target_speed,
                                         double max_speed,
@@ -59,7 +56,6 @@ public:
     virtual Trajectory extendTrajectory(const Car& car,
                                         const Trajectory& trajectory,
                                         const Route& route,
-                                        const SensorFusion& sf,
                                         double T,
                                         double target_speed,
                                         double max_speed,

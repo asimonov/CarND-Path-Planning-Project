@@ -10,14 +10,30 @@
 
 using namespace std;
 
-
-Car::Car(double x, double y, double yaw, double speed/*, const Trajectory& prev_traj*/) {
+Car::Car(int id,
+    double x, double y, double yaw,
+    double s, double d,
+    int lane,
+    double speed, double acceleration)
+{
+  _id = id;
   _x = x;
   _y = y;
   _yaw = yaw;
+  _s = s;
+  _d = d;
+  _lane = lane;
   _speed = speed;
   assert(speed>=0);
-//  _prev_traj = prev_traj;
+  _acceleration = acceleration;
+}
+
+Car Car::advance(double T)
+{
+  Car advanced(*this);
+  advanced._speed += _acceleration * T;
+  advanced._s += _speed * T + 0.5 * _acceleration * T * T;
+  return advanced;
 }
 
 
