@@ -272,25 +272,55 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   }
 
   //  collision_cost,
-  collision_cost *= COLLISION;
-  total_cost += collision_cost;
+  total_cost += COLLISION * collision_cost;
 
   //  buffer_cost,
   if (buffer_cost_count)
     buffer_cost *= DANGER / buffer_cost_count;
-  total_cost += buffer_cost;
+  total_cost += DANGER * buffer_cost;
 
   //  change_lane_cost
   if (lane_change_count) {
     double lane_change_cost = COMFORT * logistic((lane_change_count*5) / maneuvre_time);
-    total_cost += lane_change_cost;
+    total_cost += COMFORT * lane_change_cost;
   }
 
   //  inefficiency_cost,
   // TODO handle s wrapping around the track to zero
   double avg_speed = (_predictions[_predictions.size()].second - _predictions[0].second) / maneuvre_time;
   double avg_speed_cost = 1.0 - logistic(avg_speed / _target_speed);
-  total_cost += avg_speed_cost;
+  total_cost += EFFICIENCY * avg_speed_cost;
+
+  // speed limit and max acceleration costs
+  double max_speed = -1e+10;
+  double max_acceleration = max_speed;
+  double prev_s = _s;
+  double prev_v = _speed;
+  for (int i=1; i<_predictions.size(); i++)
+  {
+    double next_s = _predictions[i].second;
+    // TODO take care of S wrapping around zero
+    double v = (next_s - prev_s) / _predictions_dt;
+    if (v > max_speed)
+      max_speed = v;
+    double a = (v - prev_v) / _predictions_dt;
+    if (a> max_acceleration)
+      max_acceleration = a;
+    prev_s = next_s;
+    prev_v = v;
+  }
+
+  double speed_limit_cost = 0.0;
+  if (max_speed > _target_speed && max_speed < _max_speed)
+    speed_limit_cost = (max_speed - _target_speed) * MAX_COST / (_max_speed - _target_speed);
+  if (max_speed > _max_speed)
+    speed_limit_cost = MAX_COST;
+  total_cost += DANGER * speed_limit_cost;
+
+  double max_acceleration_cost = 0.0;
+  if (max_acceleration > 0.8 * _max_acceleration && max_acceleration < _max_acceleration)
+    max_acceleration_cost = (max_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
+  total_cost += COMFORT * max_acceleration_cost;
 
   return total_cost;
 }

@@ -172,6 +172,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         auto new_state = ego_plan.getState();
         double planning_time = ego_plan.get_target_time();
         cout << "Old State: "<<old_state.first << ", target lane = "<<old_state.second<< endl;
+        cout << "behaviour cost: "<<ego_plan.calculate_cost(other_cars)<<endl;
         cout << "New State: "<<new_state.first << ", target lane = "<<new_state.second<<", target time = "<< planning_time <<" secs" << endl;
 
         // plan trajectory (x,y points spaced at dt_s)
