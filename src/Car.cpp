@@ -15,7 +15,8 @@ Car::Car(int id,
          double s, double d,
          int lane,
          double speed, double acceleration,
-         double target_speed
+         double target_speed,
+         double max_speed, double max_acceleration, double max_jerk
 )
 {
   _id = id;
@@ -30,12 +31,18 @@ Car::Car(int id,
   _acceleration = acceleration;
   assert(target_speed>=0);
   _target_speed = target_speed;
-  _target_lane = lane;
-  _state = "KL"; // default state
+  assert(max_speed>0);
+  _max_speed = max_speed;
+  assert(max_acceleration>0);
+  _max_acceleration = max_acceleration;
+  assert(max_jerk>0);
+  _max_jerk = max_jerk;
+
+  _state = pair<Maneuvre ,int>(CONSTANT_SPEED, _lane); // default state
   _predictions_dt = -1.0;
 }
 
-Car Car::advance(double T)
+Car Car::advance(double T) const
 {
   Car advanced(*this); // use copy
   advanced._speed += _acceleration * T;
@@ -43,16 +50,249 @@ Car Car::advance(double T)
   return advanced;
 }
 
-// generate predictions
+// generate predictions. depends on the state
 void Car::generate_predictions(double T, double dt)
- {
-   assert(dt>0);
-   _predictions_dt = dt;
-   _predictions.clear();
+{
+  assert(dt>0);
+  _predictions_dt = dt;
+  _predictions.clear();
 
-  for (double t=0; t<=T; t+=dt)
-    // assume other cars do not change lanes
-    _predictions.push_back({_lane, advance(t).getS()});
+  Maneuvre m = _state.first;
+  int l = _state.second;
+  switch (m)
+  {
+    case CONSTANT_SPEED:
+      for (double t=0; t<=T; t+=dt) {
+        _predictions.push_back({_lane, _s + _speed * t});
+      }
+      break;
+    case KEEP_LANE:
+    case PREPARE_CHANGE_LANE:
+      for (double t=0; t<=T; t+=dt) {
+        double s = _s + _speed * t + 0.5 * _acceleration * t * t;
+        _predictions.push_back({_lane, s});
+      }
+      break;
+    case CHANGE_LANE:
+      for (double t=0; t<=T; t+=dt) {
+        double s = _s + _speed * t + 0.5 * _acceleration * t * t;
+        if (t<=T/2.0)
+          l = _lane; // assume lane change happens in the middle of time horizon
+        _predictions.push_back({l, s});
+      }
+      break;
+  }
+}
+
+double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double maneuvre_time) {
+  double delta_v_til_target = _target_speed - _speed;
+  double t = maneuvre_time;
+  double acc_til_target = delta_v_til_target / t; // can be negative
+  double acc_sign = 1;
+  if (acc_til_target<0) {
+    acc_sign = -1;
+  }
+  double max_acc = acc_sign * min(_max_acceleration * 0.8, fabs(acc_til_target));
+
+  //in_front = [v for (v_id, v) in predictions.items() if v[0]['lane'] == lane and v[0]['s'] > s]
+  double leading_s_now = 1e+10;
+  double leading_next_pos = 0.0;
+  for (auto it = other_cars.begin(); it != other_cars.end(); it++)
+    if (it->getLane() == _lane && it->getS() > _s) {
+      // there is car in front
+      if (it->getS() < leading_s_now) {
+        leading_s_now = it->getS();
+        leading_next_pos = it->advance(t).getS();
+      }
+    }
+
+  if (leading_s_now < 1e+10 && acc_sign>0)
+  {
+    double my_next_pos = _s + _speed * t; // my position at current speed
+    double separation_next = leading_next_pos - my_next_pos;
+    double available_room = separation_next - 2*LENGTH; // add a buffer of 2 car lengths
+    double balancing_acceleration = 2*available_room / (t*t); // can be negative
+    if (balancing_acceleration<0) {
+      acc_sign = -1;
+      max_acc = acc_sign * min(_max_acceleration*0.8, fabs(balancing_acceleration));
+    } else {
+      max_acc = min(max_acc, balancing_acceleration);
+    }
+  }
+
+  return max_acc;
+}
+
+void Car::setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& other_cars, double maneuvre_time)
+{
+  _state = state;
+  Maneuvre m = _state.first;
+  int l = _state.second;
+  assert(maneuvre_time>0.0);
+  // realizing the state by adjusting speed/acceleration
+  switch (m)
+  {
+    case CONSTANT_SPEED:
+      _acceleration = 0.0;
+      break;
+    case KEEP_LANE:
+      _acceleration = maxAccelerationForLane(other_cars, maneuvre_time);
+      break;
+    case CHANGE_LANE:
+      _lane = l;
+      _acceleration = maxAccelerationForLane(other_cars, maneuvre_time);
+      break;
+    case PREPARE_CHANGE_LANE:
+      int old_lane = _lane;
+      _lane = l;
+      // what position we aim for, as of now, to merge into desired lane
+      double best_target_s = _s;
+      double best_target_v = _speed;
+      // eliminate cars (from copy) until we are left with only cars in the target lane that are behind us
+      vector<Car> cars_copy = other_cars;
+      while (cars_copy.size())
+      {
+        if (cars_copy[cars_copy.size()-1].getLane() != _lane)
+        {
+          cars_copy.pop_back();
+          continue;
+        }
+        // car in the lane we want to merge into.
+        Car c = cars_copy[cars_copy.size()-1];
+        // we are not interested in cars in front as we are not considering speeding up.
+        // so we only look at cars behind our position+buffer
+        if (c.getS() > _s + 2*LENGTH)
+        {
+          cars_copy.pop_back();
+          continue;
+        }
+        break;
+      }
+      if (cars_copy.size())
+      {
+        // find the closest car behind (descending sort on distance)
+        // TODO deal with S wrapping around to zero around the track, in which case it may be different car that we need
+        sort(cars_copy.begin(), cars_copy.end(), [](const Car& x, const Car& y)->bool{return x.getS() > y.getS();});
+        Car nearest_behind = cars_copy[0];
+        //Car nearest_behind_target = nearest_behind.advance(maneuvre_time);
+
+        //double delta_v = nearest_behind.getSpeed() - _speed; // new speed is _speed plus delta
+        double delta_s = (nearest_behind.getS() - 2*LENGTH) - _s;// wanna end up behind that car
+        // calculate [de]acceleration to end up behind that car at specified time horizon
+        double a = -2.0 * (delta_s + _speed*maneuvre_time) / (maneuvre_time * maneuvre_time);
+        if (a<0)
+          _acceleration = -min(_max_acceleration*0.8,fabs(a));
+        else
+          _acceleration = min(_max_acceleration*0.8,a);
+      }
+      else
+      {  // no potential obstacles in the target lane, pick best acceleration
+        _acceleration = maxAccelerationForLane(other_cars, maneuvre_time);
+      }
+
+      _lane = old_lane;
+      break;
+  }
+
+}
+
+double Car::get_target_time() const
+{
+  assert(_predictions_dt>0);
+  assert(_predictions.size());
+  return (_predictions.size()-1)*_predictions_dt;
+}
+
+int    Car::get_target_lane() const
+{
+  int res = _lane;
+  if (_state.first == CHANGE_LANE)
+    res = _state.second;
+  return res;
+}
+
+
+// calculates cost function of internal trajectory given trajectories of other cars
+double Car::calculate_cost(const std::vector<Car>& other_cars)
+{
+  double total_cost = 0.0;
+
+  // cost boundaries for each instance of priced event
+  const double MIN_COST   = -1;
+  const double MAX_COST   = +1;
+  // priority levels for different costs
+  const double COLLISION  = 1e+6;
+  const double DANGER     = 1e+5;
+  const double REACH_GOAL = 1e+5;
+  const double COMFORT    = 1e+4;
+  const double EFFICIENCY = 1e+2;
+
+//  TrajectoryData(
+//          proposed_lane,
+//          avg_speed,
+//          max_accel,
+//          rms_acceleration,
+//          closest_approach,
+//          end_distance_to_goal,
+//          end_lanes_from_goal,
+//          collides)
+
+
+  double collision_cost = 0.0;
+  double buffer_cost = 0.0;
+  int buffer_cost_count = 0;
+  int lane_change_count = 0;
+  assert(_predictions_dt>0);
+  assert(_predictions.size());
+  double maneuvre_time = (_predictions.size()-1) * _predictions_dt;
+  for (auto it=other_cars.begin(); it!=other_cars.end(); it++)
+  {
+    assert(_predictions_dt = it->_predictions_dt); // make sure our time steps are same for predictions
+    int ego_lane = _lane;
+    for (int i=0; i<min(_predictions.size(), it->_predictions.size()); i++)
+    {
+      if (ego_lane != _predictions[i].first)
+        lane_change_count += 1;
+      ego_lane = _predictions[i].first;
+      int other_lane = it->_predictions[i].first;
+      if (ego_lane == other_lane)
+      {
+        double ego_s = _predictions[i].second;
+        double other_s = it->_predictions[i].second;
+        // TODO take care of S wrapping around zero
+        if (fabs(ego_s - other_s) < 2*LENGTH)
+        {
+          buffer_cost += 1.0 - logistic( fabs(ego_s - other_s) / (2*LENGTH) );
+          buffer_cost_count += 1;
+          if (fabs(ego_s - other_s) < LENGTH)
+            collision_cost += MAX_COST;
+        }
+      }
+    }
+  }
+
+  //  collision_cost,
+  collision_cost *= COLLISION;
+  total_cost += collision_cost;
+
+  //  buffer_cost,
+  if (buffer_cost_count)
+    buffer_cost *= DANGER / buffer_cost_count;
+  total_cost += buffer_cost;
+
+  //  change_lane_cost
+  if (lane_change_count) {
+    double lane_change_cost = COMFORT * logistic((lane_change_count*5) / maneuvre_time);
+    total_cost += lane_change_cost;
+  }
+
+  //  inefficiency_cost,
+  // TODO handle s wrapping around the track to zero
+  double avg_speed = (_predictions[_predictions.size()].second - _predictions[0].second) / maneuvre_time;
+  double avg_speed_cost = 1.0 - logistic(avg_speed / _target_speed);
+  total_cost += avg_speed_cost;
+
+  return total_cost;
 }
 
 

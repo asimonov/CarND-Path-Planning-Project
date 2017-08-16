@@ -282,14 +282,6 @@ double Trajectory::getTotalSquaredJerk() const
   return res;
 }
 
-/*
- * A function that returns a value between 0 and 1 for x in the
-        range [0, infinity] and -1 to 1 for x in the range [-infinity, infinity].
- */
-double logistic(double x)
-{
-  return 2.0 / (1 + exp(-x)) - 1.0;
-}
 
 
 double Trajectory::getCost(double target_time, double target_distance, double target_speed,

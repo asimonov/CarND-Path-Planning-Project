@@ -20,6 +20,7 @@ using json = nlohmann::json;
 
 // global variable. initialised in main. used in onMessage
 Route route;
+std::pair<Maneuvre, int> old_state;
 
 
 // process telemetery event
@@ -68,14 +69,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];
-        //["sensor_fusion"] A 2d vector of cars and then that car's
-        // [car's unique ID,
-        //  car's x position in map coordinates,
-        //  car's y position in map coordinates,
-        //  car's x velocity in m/s,
-        //  car's y velocity in m/s,
-        //  car's s position in frenet coordinates,
-        //  car's d position in frenet coordinates.]
 
         // log event
         auto fr = route.get_frenet(car_x, car_y, car_yaw);
@@ -92,7 +85,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const double dt_s = 0.02; // discretisation time length, in seconds
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
-        const double time_horizon_s = 5.0; // min planning time horizon, in seconds
         const double max_speed = mph2ms(50.0); // max speed in meter/second
         const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
@@ -105,19 +97,19 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         ss << "in_traj_" << ts_ms();
         in_traj.dump_to_file(ss.str());
 
-        // possibly cut old trajectory shorter size
-//        const double keep_old_trajectory_secs = 50.0;
-//        vector<double> x, y;
-//        double i=0;
-//        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
-//        {
-//          x.push_back(previous_path_x[i]);
-//          y.push_back(previous_path_y[i]);
-//          i++;
-//        }
-//        in_traj = Trajectory(x,y,dt_s);
+        // cut old trajectory shorter size
+        const double keep_old_trajectory_secs = 1.0;
+        vector<double> x, y;
+        double i=0;
+        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
+        {
+          x.push_back(previous_path_x[i]);
+          y.push_back(previous_path_y[i]);
+          i++;
+        }
+        in_traj = Trajectory(x,y,dt_s);
 
-        // define ego car object
+        // define ego car object, as of end of retained trajectory
         double car_acceleration = 0.0;
         if (in_traj.getSize())
         {
@@ -132,10 +124,21 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           car_d = fr[1];
         }
         int car_lane = car_d / lane_width;
-        Car ego(Car::getEgoID(), car_x, car_y, deg2rad(car_yaw), car_s, car_d, car_lane, car_speed, car_acceleration, target_speed);
+        Car ego(Car::getEgoID(),
+                car_x, car_y, deg2rad(car_yaw), car_s, car_d,
+                car_lane, car_speed, car_acceleration,
+                target_speed, max_speed, max_acceleration, max_jerk);
         double ego_time = in_traj.getTotalT();
 
         // process sensor fusion and define all other cars on the road
+        //["sensor_fusion"] A 2d vector of cars and then that car's
+        // [car's unique ID,
+        //  car's x position in map coordinates,
+        //  car's y position in map coordinates,
+        //  car's x velocity in m/s,
+        //  car's y velocity in m/s,
+        //  car's s position in frenet coordinates,
+        //  car's d position in frenet coordinates.]
         vector<Car> other_cars;
         for (int i = 0; i < sensor_fusion.size(); i++) {
           int id = sensor_fusion[i][0];
@@ -156,7 +159,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           int lane = d / lane_width;
           double a = 0.0;
           double v_target = v;
-          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target);
+          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target, max_speed, max_acceleration, max_jerk);
           // now create state of other cars as of end time of ego trajectory
           other_cars.push_back(other_car_at_zero.advance(ego_time));
         }
@@ -164,20 +167,26 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // use behaviour planner to decide on high level what maneuvre to execute and where to go to,
         // with what speed and acceleration
         BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
-        Car planned_ego_state = bp.plan(time_horizon_s, max_speed, max_acceleration, max_jerk);
+        const double time_horizon_s = 5.0; // max planning time horizon, in seconds
+        Car ego_plan = bp.plan(time_horizon_s);
+        auto new_state = ego_plan.getState();
+        double planning_time = ego_plan.get_target_time();
+        cout << "Old State: "<<old_state.first << ", target lane = "<<old_state.second<< endl;
+        cout << "New State: "<<new_state.first << ", target lane = "<<new_state.second<<", target time = "<< planning_time <<" secs" << endl;
 
         // plan trajectory (x,y points spaced at dt_s)
         JMTPlanner planner;
         Trajectory out_tr = in_traj;
-        double t = in_traj.getTotalT();
-        if (t < 5.0) {
-          cout << "t="<< out_tr.getTotalT() << "(n="<<out_tr.getSize()<<") extending.." << endl;
-          out_tr = planner.extendTrajectory(ego, in_traj, route, time_horizon_s, target_speed, max_speed, max_acceleration, max_jerk);
+//        double t = in_traj.getTotalT();
+//        if (t < 5.0) {
+//          cout << "t="<< out_tr.getTotalT() << "(n="<<out_tr.getSize()<<") extending by "<< planning_time <<" secs" << endl;
+          out_tr = planner.extendTrajectory(ego_plan, in_traj, route, planning_time, lane_width, target_speed, max_speed, max_acceleration, max_jerk);
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
           out_tr.dump_to_file(ss2.str());
-        }
+//        }
 
+        old_state = new_state;
 
         // send control message back to the simulator
         json msgJson;

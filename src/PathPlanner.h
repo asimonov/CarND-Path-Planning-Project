@@ -17,13 +17,15 @@ public:
     //   car (position, heading, velocity),
     //   existing trajectory to be extended (can be empty),
     //   route to follow (as road centerline coordinates, also converts from frenet to XY and vice versa),
-    //   minimum planning time horizon T,
+    //   planning time horizon planning_time,
+    //   lane width (to get d from lane number)
     //   desired speed at the end of planning horizon
     //   max speed, acceleration and jerk,
     virtual Trajectory extendTrajectory(const Car& car,
                                         const Trajectory& trajectory, // existing trajectory to be extended
                                         const Route& route,
-                                        double T,
+                                        double planning_time,
+                                        double lane_width,
                                         double target_speed,
                                         double max_speed,
                                         double max_acceleration,
@@ -56,7 +58,8 @@ public:
     virtual Trajectory extendTrajectory(const Car& car,
                                         const Trajectory& trajectory,
                                         const Route& route,
-                                        double T,
+                                        double planning_time,
+                                        double lane_width,
                                         double target_speed,
                                         double max_speed,
                                         double max_acceleration,
