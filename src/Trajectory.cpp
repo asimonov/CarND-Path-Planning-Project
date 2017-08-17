@@ -130,6 +130,17 @@ double Trajectory::getFinalYaw() const
   return _heading[n-2];
 }
 
+void Trajectory::storeFinalFrenet(double s, double d)
+{
+  _final_s = s;
+  _final_d = d;
+}
+
+std::vector<double> Trajectory::getFinalFrenet() const
+{
+  return {_final_s, _final_d};
+}
+
 void Trajectory::add(double x, double y) {
   _x_vals.push_back(x);
   _y_vals.push_back(y);

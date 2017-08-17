@@ -58,6 +58,10 @@ public:
                     const Route& route) const;
     void dump_to_file(const std::string& filename) const;
 
+    // this is to overcome deficiency xy->frenet->xy conversion by storing our original frenet coordinates
+    void storeFinalFrenet(double s, double d);
+    std::vector<double> getFinalFrenet() const;
+
 private:
     std::vector<double> _x_vals; // x coordinate, meters
     std::vector<double> _y_vals; // y coordinate, meters
@@ -75,6 +79,9 @@ private:
     std::vector<double> _heading; // heading between adjacent (x,y), from beginning of the segment
     double              _dt; // discretisation time interval, seconds
     mutable std::string _cost_dump_str; // string buffer to debug cost function elements
+    // my own s,d coordinates correspoinding to final x,y / stored independently of final x,y
+    double              _final_s;
+    double              _final_d;
 };
 
 

@@ -23,7 +23,7 @@ using json = nlohmann::json;
 Route                    g_route;
 // planned state and final planned s coordinate are saved in onMessage after each planning cycle
 std::pair<Maneuvre, int> g_planned_state;
-double                   g_planned_s = -1000;
+std::vector<double>      g_final_frenet = {-1000000,0};
 
 
 // process telemetery event
@@ -95,6 +95,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // define existing trajectory
         Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
+        in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]); // hack to avoid jerks from xy->frenet->xy imperfect conversion
         // save debug trajectory info to a file
         std::stringstream ss;
         ss << "in_traj_" << ts_ms();
@@ -129,9 +130,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           car_yaw = in_traj.getFinalYaw();
           car_speed = in_traj.getFinalSpeed();
           car_acceleration = in_traj.getFinalAcceleration();
-          auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
-          car_s = fr[0];
-          car_d = fr[1];
+          // what it should be. BUT we have saved it, so just restore
+//          auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
+//          car_s = fr[0];
+//          car_d = fr[1];
+          car_s = g_final_frenet[0];
+          car_d = g_final_frenet[1];
         }
         car_lane = car_d / lane_width;
         Car ego(Car::getEgoID(),
@@ -194,17 +198,14 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           // plan final trajectory (x,y points spaced at dt_s) using the maneuvre
           JMTPlanner planner;
           out_tr = planner.extendTrajectory(ego_plan, in_traj, g_route, planning_time, lane_width, target_speed, max_speed, max_acceleration, max_jerk);
-          auto xy_final = out_tr.getFinalXY();
-          auto fr_final = g_route.get_frenet(xy_final[0], xy_final[1], out_tr.getFinalYaw());
-          double new_planned_s = fr_final[0];
-          cout << "New Planned s: "<<new_planned_s << endl;
+          g_final_frenet = out_tr.getFinalFrenet();
+          cout << "New Planned s: "<<g_final_frenet[0] << endl;
 
           std::stringstream ss2;
           ss2 << "out_traj_" << ts_ms();
           out_tr.dump_to_file(ss2.str());
 
           g_planned_state = new_state;
-          g_planned_s = new_planned_s;
         }
 
         // send control message back to the simulator

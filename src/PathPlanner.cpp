@@ -117,7 +117,7 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
 //    if (len>3)
 //      curr_jerk = trajectory.getFinalJerk();
 //  }
-  auto fr = route.get_frenet(curr_x, curr_y, curr_yaw);
+  auto fr = trajectory.getFinalFrenet();
   double curr_s = fr[0];
   double curr_d = fr[1];
 
@@ -179,10 +179,12 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
         double dt = trajectory.getDt();
         int n_steps = floor(sample_t / dt);
         bool first = true;
+        double s;
+        double d;
         for (int j=1;j<n_steps; j++)
         {
-          double s = jmt_s.eval(double(j)*dt);
-          double d = jmt_d.eval(j*dt);
+          s = jmt_s.eval(double(j)*dt);
+          d = jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);
 //          if (first) {
@@ -191,6 +193,7 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
 //            first = false;
 //          }
         }
+        sample_tr.storeFinalFrenet(s,d);
         // estimate trajectory cost and update if it's best we've seen so far
         double cost = sample_tr.getCost(sample_t, sample_s, target_speed,
                                         max_speed, max_acceleration, max_jerk,
