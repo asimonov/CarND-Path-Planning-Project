@@ -161,7 +161,7 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
 //        double a_s = 0.0;//curr_acceleration;// * cos(curr_yaw);
 //        double target_v_s = target_speed;
 //        double target_a_s = 0.0;
-        JerkMinimizingPolynomial jmt_s({0,        curr_speed, curr_acceleration},
+        JerkMinimizingPolynomial jmt_s({curr_s,   curr_speed, curr_acceleration},
                                        {sample_s, next_speed, next_acc},
                                        sample_t);
 
@@ -181,7 +181,7 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
         bool first = true;
         for (int j=1;j<n_steps; j++)
         {
-          double s = curr_s + jmt_s.eval(double(j)*dt);
+          double s = jmt_s.eval(double(j)*dt);
           double d = jmt_d.eval(j*dt);
           auto xy = route.get_XY(s, d);
           sample_tr.add(xy[0], xy[1]);
