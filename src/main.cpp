@@ -95,23 +95,16 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // define existing trajectory
         Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
-        in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]); // hack to avoid jerks from xy->frenet->xy imperfect conversion
+        if (g_final_frenet[0]>-100)
+          in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]); // hack to avoid jerks from xy->frenet->xy imperfect conversion
+        else
+          in_traj.storeFinalFrenet(car_s, car_d); // just use what came from simulator for first iteration
+
         // save debug trajectory info to a file
         std::stringstream ss;
-        ss << "in_traj_" << ts_ms();
+        ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_0_in_traj";
         in_traj.dump_to_file(ss.str());
 
-        // cut old trajectory shorter size
-//        const double keep_old_trajectory_secs = 1.0;
-//        vector<double> x, y;
-//        double i=0;
-//        while (i<previous_path_x.size() && i*dt_s <= keep_old_trajectory_secs)
-//        {
-//          x.push_back(previous_path_x[i]);
-//          y.push_back(previous_path_y[i]);
-//          i++;
-//        }
-//        in_traj = Trajectory(x,y,dt_s);
 
         // define ego car as of where simulator is now
         double car_acceleration = 0.0;
@@ -183,17 +176,34 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         auto fr_planned = g_route.get_frenet(ego.getX(),     ego.getY(),     ego.getYaw());
         double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         Trajectory out_tr = in_traj;
+
         if ( fr_planned[0] - fr_now[0] < re_planning_s_horizon) {
+
           // plan maneuvre using behaviour planner
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
           const double time_horizon_s = 5.0; // max planning time horizon, in seconds
           Car ego_plan = bp.plan(time_horizon_s);
           auto new_state = ego_plan.getState();
           double planning_time = ego_plan.get_target_time();
+
           cout << "Old State: " << g_planned_state.first << ", target lane = " << g_planned_state.second << endl;
           cout << "behaviour cost: " << ego_plan.calculate_cost(other_cars) << endl;
           cout << "New State: " << new_state.first << ", target lane = " << new_state.second << ", target time = "
                << planning_time << " secs" << endl;
+
+          // dump sensor fusion trace
+          ss.str("");
+          ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_1_sf";
+          for (auto c : other_cars)
+          {
+            c.dumpToStream(ss.str());
+          }
+          // dump planned ego
+          ss.str("");
+          ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_2_ego";
+          ego_plan.dumpToStream(ss.str());
+
+
 
           // plan final trajectory (x,y points spaced at dt_s) using the maneuvre
           JMTPlanner planner;
@@ -201,9 +211,9 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           g_final_frenet = out_tr.getFinalFrenet();
           cout << "New Planned s: "<<g_final_frenet[0] << endl;
 
-          std::stringstream ss2;
-          ss2 << "out_traj_" << ts_ms();
-          out_tr.dump_to_file(ss2.str());
+          ss.str("");
+          ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_3_out_traj";
+          out_tr.dump_to_file(ss.str());
 
           g_planned_state = new_state;
         }

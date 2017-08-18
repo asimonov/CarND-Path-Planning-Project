@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <ostream>
 
 enum Maneuvre
 {
@@ -59,6 +60,7 @@ public:
     int    get_target_lane() const;
 
     //void setAcceleration(double a) {_acceleration=a;}
+    void dumpToStream(const std::string& filename) const;
 
     // translate x,y in car coordinates into global coordinates (given car position on the map)
     std::vector<double> car2global(double x, double y) const;
