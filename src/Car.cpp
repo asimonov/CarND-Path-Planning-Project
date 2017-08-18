@@ -87,8 +87,8 @@ void Car::generate_predictions(double T, double dt)
 
 double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double maneuvre_time) {
   double delta_v_til_target = _target_speed - _speed;
-  double t = maneuvre_time;
-  double acc_til_target = delta_v_til_target / t; // can be negative
+//  double t = maneuvre_time;
+  double acc_til_target = delta_v_til_target / maneuvre_time; // can be negative
   double acc_sign = 1;
   if (acc_til_target<0) {
     acc_sign = -1;
@@ -103,16 +103,16 @@ double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double ma
       // there is car in front
       if (it->getS() < leading_s_now) {
         leading_s_now = it->getS();
-        leading_next_pos = it->advance(t).getS();
+        leading_next_pos = it->advance(maneuvre_time).getS();
       }
     }
 
   if (leading_s_now < 1e+10 && acc_sign>0)
   {
-    double my_next_pos = _s + _speed * t; // my position at current speed
+    double my_next_pos = _s + _speed * maneuvre_time; // my position at current speed
     double separation_next = leading_next_pos - my_next_pos;
     double available_room = separation_next - 2*LENGTH; // add a buffer of 2 car lengths
-    double balancing_acceleration = 2*available_room / (t*t); // can be negative
+    double balancing_acceleration = 2*available_room / (maneuvre_time*maneuvre_time); // can be negative
     if (balancing_acceleration<0) {
       acc_sign = -1;
       max_acc = acc_sign * min(_max_acceleration*0.8, fabs(balancing_acceleration));
