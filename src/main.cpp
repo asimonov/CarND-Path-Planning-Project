@@ -57,8 +57,8 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // Main car's localization Data
         double car_x = j[1]["x"];
         double car_y = j[1]["y"];
-        double car_s = j[1]["s"];
-        double car_d = j[1]["d"];
+        double car_s_sim = j[1]["s"];
+        double car_d_sim = j[1]["d"];
         double car_yaw = j[1]["yaw"];
         double car_speed = j[1]["speed"];
 
@@ -75,14 +75,9 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // log event
         auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
-        cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
-             <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
-             <<" s="<<car_s<<"(mine: "<<fr[0]<<")"<<" d="<<car_d<<"(mine:"<<fr[1]<<")"
-             <<" yaw="<<car_yaw <<" v="<<car_speed
-             << endl;
         // replace frenet with my own frenet estimates
-        car_s = fr[0];
-        car_d = fr[1];
+        double car_s_mine = fr[0];
+        double car_d_mine = fr[1];
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
@@ -98,7 +93,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         if (g_final_frenet[0]>-100)
           in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]); // hack to avoid jerks from xy->frenet->xy imperfect conversion
         else
-          in_traj.storeFinalFrenet(car_s, car_d); // just use what came from simulator for first iteration
+          in_traj.storeFinalFrenet(car_s_sim, car_d_sim); // just use what came from simulator for first iteration
 
         // save debug trajectory info to a file
         std::stringstream ss;
@@ -108,9 +103,9 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // define ego car as of where simulator is now
         double car_acceleration = 0.0;
-        int car_lane = car_d / lane_width;
+        int car_lane = car_d_mine / lane_width;
         Car ego_sim(Car::getEgoID(),
-                car_x, car_y, deg2rad(car_yaw), car_s, car_d,
+                car_x, car_y, deg2rad(car_yaw), car_s_mine, car_d_mine,
                 car_lane, car_speed, car_acceleration,
                 target_speed, max_speed, max_acceleration, max_jerk);
 
@@ -127,12 +122,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 //          auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
 //          car_s = fr[0];
 //          car_d = fr[1];
-          car_s = g_final_frenet[0];
-          car_d = g_final_frenet[1];
+          car_s_mine = g_final_frenet[0];
+          car_d_mine = g_final_frenet[1];
         }
-        car_lane = car_d / lane_width;
+        car_lane = car_d_mine / lane_width;
         Car ego(Car::getEgoID(),
-                car_x, car_y, deg2rad(car_yaw), car_s, car_d,
+                car_x, car_y, deg2rad(car_yaw), car_s_mine, car_d_mine,
                 car_lane, car_speed, car_acceleration,
                 target_speed, max_speed, max_acceleration, max_jerk);
         double ego_time = in_traj.getTotalT();
@@ -178,6 +173,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Trajectory out_tr = in_traj;
 
         if ( fr_planned[0] - fr_now[0] < re_planning_s_horizon) {
+          // log inputs
+          cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
+               <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
+               <<" s="<<car_s_sim<<"(mine: "<<car_s_mine<<")"<<" d="<<car_d_sim<<"(mine:"<<car_d_mine<<")"
+               <<" yaw="<<car_yaw <<" v="<<car_speed
+               << endl;
 
           // plan maneuvre using behaviour planner
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
@@ -216,6 +217,15 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           out_tr.dump_to_file(ss.str());
 
           g_planned_state = new_state;
+
+          // sleep for 100 ms, to match real cars latency
+          this_thread::sleep_for(chrono::milliseconds(100));
+
+          int n = out_tr.getY().size();
+          cout << ts_ms_str() << "OUT n="<<setw(5)<<n
+               << " x_s="<<setw(8)<<out_tr.getX()[0] <<" y_s="<<setw(8)<<out_tr.getY()[0]
+               << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
+               << endl;
         }
 
         // send control message back to the simulator
@@ -224,14 +234,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         msgJson["next_y"] = out_tr.getY();
         auto msg = "42[\"control\"," + msgJson.dump() + "]";
 
-        // sleep for 100 ms, to match real cars latency
-        this_thread::sleep_for(chrono::milliseconds(100));
-
-        int n = out_tr.getY().size();
-        cout << ts_ms_str() << "OUT n="<<setw(5)<<n
-             << " x_s="<<setw(8)<<out_tr.getX()[0] <<" y_s="<<setw(8)<<out_tr.getY()[0]
-             << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
-             << endl;
         ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
       }
     } else {

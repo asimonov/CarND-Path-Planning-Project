@@ -289,10 +289,10 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   if (lane_change_count)
   {
     // lane change should not take more than 3 seconds
-    if (maneuvre_time > 3.0)
+    if (maneuvre_time > 4.5)
       lane_change_cost = MAX_COST;
     else
-      lane_change_cost = logistic(10 * (lane_change_count*WIDTH) / maneuvre_distance);
+      lane_change_cost = logistic(15 * (lane_change_count*WIDTH) / maneuvre_distance);
   }
   total_cost += COMFORT * lane_change_cost;
 
