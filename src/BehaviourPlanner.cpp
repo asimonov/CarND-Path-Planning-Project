@@ -61,17 +61,18 @@ Car BehaviourPlanner::plan(double T_horizon)
   }
   else if (current_state.first == PREPARE_CHANGE_LANE) {
     // possible states from here: KL, LC, PLC
-    int lane = egoPlan.getLane();
-    possible_states.push_back(pair<Maneuvre, int>(KEEP_LANE, lane));
-    if (lane > 0) // can change left
+    int current_lane = egoPlan.getLane();
+    int target_lane = current_state.second;
+    possible_states.push_back(pair<Maneuvre, int>(KEEP_LANE, current_lane));
+    if (current_lane > 0) // can change left
     {
-      possible_states.push_back(pair<Maneuvre, int>(CHANGE_LANE, lane - 1));
-      possible_states.push_back(pair<Maneuvre, int>(PREPARE_CHANGE_LANE, lane - 1));
+      possible_states.push_back(pair<Maneuvre, int>(CHANGE_LANE, current_lane - 1));
+      possible_states.push_back(pair<Maneuvre, int>(PREPARE_CHANGE_LANE, current_lane - 1));
     }
-    if (lane < _num_lanes-1) // can change right
+    if (current_lane < _num_lanes-1) // can change right
     {
-      possible_states.push_back(pair<Maneuvre, int>(CHANGE_LANE, lane + 1));
-      possible_states.push_back(pair<Maneuvre, int>(PREPARE_CHANGE_LANE, lane + 1));
+      possible_states.push_back(pair<Maneuvre, int>(CHANGE_LANE, current_lane + 1));
+      possible_states.push_back(pair<Maneuvre, int>(PREPARE_CHANGE_LANE, current_lane + 1));
     }
   } else if (current_state.first == CHANGE_LANE) {
     // possible states from here: LC, KL
@@ -101,6 +102,7 @@ Car BehaviourPlanner::plan(double T_horizon)
   }
   egoPlan.setState(best_state,_other_cars,best_t);
   egoPlan.generate_predictions(best_t, dt);
+  double cost = egoPlan.calculate_cost(_other_cars);
 
   return egoPlan;
 }

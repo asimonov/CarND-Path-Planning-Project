@@ -497,10 +497,10 @@ void Trajectory::dump_to_file(const std::string& filename) const
 
   f<<endl;
 
-  f<<"heading"<<endl;
+  f<<"heading, degrees"<<endl;
   n = _heading.size();
   for (int i=0;i<n;i++)
-    f<<_heading[i]<<endl;
+    f<<rad2deg(_heading[i])<<endl;
 
   f<<endl;
 

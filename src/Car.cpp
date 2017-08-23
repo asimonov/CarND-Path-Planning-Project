@@ -220,29 +220,17 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   // cost boundaries for each instance of priced event
   // all costs are between MIN and MAX, before priority levels are applied
-  const double MIN_COST   = 0.0;
-  const double MAX_COST   = +1.0;
+  const double MIN_COST   = +0.;
+  const double MAX_COST   = +1.;
   // priority levels for different costs
-  const double COLLISION  = 1e+6;
-  const double DANGER     = 1e+5;
-  const double REACH_GOAL = 1e+5;
-  const double COMFORT    = 1e+4;
-  const double EFFICIENCY = 1e+2;
-
-//  TrajectoryData(
-//          proposed_lane,
-//          avg_speed,
-//          max_accel,
-//          rms_acceleration,
-//          closest_approach,
-//          end_distance_to_goal,
-//          end_lanes_from_goal,
-//          collides)
-
+  const double COLLISION  = 100;
+  const double DANGER     = 50;
+  //const double REACH_GOAL = 1e+5;
+  const double COMFORT    = 20;
+  const double EFFICIENCY = 10;
 
   double collision_cost = MIN_COST;
   double buffer_cost = MIN_COST;
-  int buffer_cost_count = 0;
   int lane_change_count = 0;
   assert(_predictions_dt>0);
   assert(_predictions.size());
@@ -252,17 +240,18 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   for (auto it=other_cars.begin(); it!=other_cars.end(); it++)
   {
     assert(_predictions_dt = it->_predictions_dt); // make sure our time steps are same for predictions
-    int ego_lane = _lane;
+    int ego_lane = _lane; // initial lane
+    double this_car_buffer_cost = MIN_COST;
     for (int i=0; i<min(_predictions.size(), it->_predictions.size()); i++)
     {
       if (ego_lane != _predictions[i].first)
         lane_change_count += 1;
-      ego_lane = _predictions[i].first;
+      ego_lane = _predictions[i].first; // possibly changed lane
       int other_lane = it->_predictions[i].first;
-      if (_s < it->getS()+LENGTH) {
+      if (_s > it->getS()+LENGTH) {
         // only take into consideration cars which were initially in front.
         // If they are behind, it is their problem to keep distance and avoid collisions
-        continue;
+        break;
       }
       if (ego_lane == other_lane)
       {
@@ -273,43 +262,58 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
           collision_cost += MAX_COST;
           break;
         }
-        if (fabs(ego_s - other_s) < 2*LENGTH)
+        const int NUM_BUFFER_LENGTHS = 10;
+        if (fabs(ego_s - other_s) < NUM_BUFFER_LENGTHS*LENGTH)
         {
           // only take buffer into consideration if we are behind a car initially.
-          // they they are behind, it is their problem to keep distance
-          buffer_cost += 1.0 - logistic( fabs(ego_s - other_s) / (2*LENGTH) );
-          buffer_cost_count += 1;
-          break;
+          // they they are behind, it is their problem to keep distance.
+          // Expression in logistic function should be between 0 and 5.
+          double bcost = MAX_COST - logistic( fabs(ego_s - other_s) / (2*NUM_BUFFER_LENGTHS*LENGTH) );
+          if (bcost > this_car_buffer_cost)
+            this_car_buffer_cost = bcost;
         }
       }
     }
+    if (this_car_buffer_cost > buffer_cost)
+      buffer_cost = this_car_buffer_cost;
   }
 
-  //  collision_cost,
+  //  collision_cost
   total_cost += COLLISION * collision_cost;
 
   //  buffer_cost,
-  if (buffer_cost_count)
-    buffer_cost /= buffer_cost_count;
   total_cost += DANGER * buffer_cost;
 
   //  change_lane_cost. drops with length of the maneuvre, if we did change lane
   double lane_change_cost = MIN_COST;
   if (lane_change_count)
-    lane_change_cost = logistic((lane_change_count) / maneuvre_time);
+  {
+    // lane change should not take more than 3 seconds
+    if (maneuvre_time > 3.0)
+      lane_change_cost = MAX_COST;
+    else
+      lane_change_cost = logistic(2 * (lane_change_count*WIDTH) / maneuvre_distance);
+  }
   total_cost += COMFORT * lane_change_cost;
 
 
   double max_speed = -1e+10;
   double max_acceleration = max_speed;
   double prev_s = _s;
+  double max_s = _s;
+  double max_backwards_distance = 0.0;
   double prev_v = _speed;
   bool went_backwards = false;
   for (int i=1; i<_predictions.size(); i++)
   {
     double next_s = _predictions[i].second;
-    if (next_s < prev_s)
+    if (next_s > max_s)
+      max_s = next_s;
+    if (next_s < max_s) {
       went_backwards = true;
+      if (max_s - next_s > max_backwards_distance)
+        max_backwards_distance = max_s - next_s;
+    }
     // TODO take care of S wrapping around zero
     double v = (next_s - prev_s) / _predictions_dt;
     if (v > max_speed)
@@ -344,8 +348,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   // disallow going backwards
   double go_backwards_cost = MIN_COST;
   if (went_backwards)
-    go_backwards_cost = MAX_COST;
-  total_cost += EFFICIENCY * go_backwards_cost;
+    go_backwards_cost = logistic(max_backwards_distance);
+  total_cost += COMFORT * go_backwards_cost;
 
   return total_cost;
 }
