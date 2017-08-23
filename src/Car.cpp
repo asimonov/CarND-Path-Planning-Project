@@ -226,8 +226,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   const double COLLISION  = 100;
   const double DANGER     = 50;
   //const double REACH_GOAL = 1e+5;
-  const double COMFORT    = 20;
-  const double EFFICIENCY = 10;
+  const double COMFORT    = 30;
+  const double EFFICIENCY = 15;
 
   double collision_cost = MIN_COST;
   double buffer_cost = MIN_COST;
@@ -292,7 +292,7 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
     if (maneuvre_time > 3.0)
       lane_change_cost = MAX_COST;
     else
-      lane_change_cost = logistic(2 * (lane_change_count*WIDTH) / maneuvre_distance);
+      lane_change_cost = logistic(10 * (lane_change_count*WIDTH) / maneuvre_distance);
   }
   total_cost += COMFORT * lane_change_cost;
 

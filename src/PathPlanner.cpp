@@ -133,13 +133,22 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
 
   // define grid of possible T, s, d values to then generate JMT trajectories and choose those with lowest cost
   vector<double> T_values = {planning_time};
+  if (planning_time-1>1)
+    T_values.push_back(planning_time-1);
+  T_values.push_back(planning_time+1);
 //  // add more time horizons to 8 seconds extra, in steps of 0.5 secs
 //  for (int i=0; i<5; i++)
 //    T_values.push_back( T + (i+1)*1.0 );
   vector<double> s_values = {next_s};
-  // add more s horizons (from current s) to 200 meters ahead, in steps of 10 meters
-//  for (int i=0; i<15; i++)
-//    s_values.push_back( (i+1)*10 );
+  // add more s horizons (from current s) to +=10 meters, in steps of 1 meters
+  const double step = 1.0;
+  for (int i=0; i<10; i++)
+  {
+    if (next_s-(i+1)*step > 0)
+      s_values.push_back( next_s -(i+1)*step );
+    if (next_s+(i+1)*step > 0)
+      s_values.push_back( next_s +(i+1)*step );
+  }
 //  vector<double> d_values = {2.0, 6.0, 9.5}; // centers of left, center and right lanes
   vector<double> d_values = {next_d};
 

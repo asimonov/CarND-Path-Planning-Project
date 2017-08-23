@@ -89,7 +89,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(45.0); // target speed in meter/second
+        const double target_speed = mph2ms(47.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
