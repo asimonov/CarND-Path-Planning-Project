@@ -302,28 +302,6 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
     frenet_s += get_max_s();
 
   return {frenet_s, frenet_d};
-/*
-  double frenet_d = euclidian_distance(x_x, x_y, proj_x, proj_y);
-
-  //see if d value is positive or negative by comparing it to a center point
-  double center_x = 1000 - _waypoints_x[prev_wp];
-  double center_y = 2000 - _waypoints_y[prev_wp];
-  double centerToPos = euclidian_distance(center_x, center_y, x_x, x_y);
-  double centerToRef = euclidian_distance(center_x, center_y, proj_x, proj_y);
-
-  if (centerToPos <= centerToRef) {
-    frenet_d *= -1;
-  }
-
-  // calculate s value
-  double frenet_s = 0;
-  for (int i = 0; i < prev_wp; i++) {
-    frenet_s += euclidian_distance(_waypoints_x[i], _waypoints_y[i], _waypoints_x[i + 1], _waypoints_y[i + 1]);
-  }
-  frenet_s += euclidian_distance(0, 0, proj_x, proj_y);
-
-  return {frenet_s, frenet_d};
-*/
 }
 
 
