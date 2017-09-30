@@ -4,13 +4,14 @@
 
 #include "BehaviourPlanner.h"
 #include <map>
+#include <iostream>
 
 using namespace std;
 
-BehaviourPlanner::BehaviourPlanner(int num_lanes, double lane_width, Car ego, std::vector<Car> other_cars) : _ego(ego)
+BehaviourPlanner::BehaviourPlanner(int num_lanes, double lane_width, Car ego, std::vector<Car>& other_cars) : _ego(ego), _other_cars(other_cars)
 {
   _num_lanes = num_lanes;
-  _other_cars = other_cars;
+//  _other_cars = other_cars;
 }
 
 Car BehaviourPlanner::plan(double T_horizon)
@@ -85,15 +86,20 @@ Car BehaviourPlanner::plan(double T_horizon)
   pair<Maneuvre, int> best_state;
   double best_cost = 1e+10;
   double best_t = 0.0;
+  cout << "BP: start" << endl;
   for (auto state : possible_states)
   {
+    cout << "BP: try state " << state.first << " " << state.second  << endl;
     // try several time horizons with each state, then choose based on cost
     for (double t=1.0; t<=T_horizon; t+=1.0) {
+      cout << "BP: try time " << t << endl;
       Car egoCopy = egoPlan;
       egoCopy.setState(state,_other_cars,t);
       egoCopy.generate_predictions(t, dt); // this also sets time horizon for ego to chose
       double cost = egoCopy.calculate_cost(_other_cars);
+      cout << "BP: cost " << cost << ", acceleration " << egoCopy.getAcceleration() << " lane " << egoCopy.get_target_lane() <<  endl;
       if (cost < best_cost) {
+        cout << "BP: *** " <<  endl;
         best_cost = cost;
         best_state = state;
         best_t = t;
@@ -102,7 +108,7 @@ Car BehaviourPlanner::plan(double T_horizon)
   }
   egoPlan.setState(best_state,_other_cars,best_t);
   egoPlan.generate_predictions(best_t, dt);
-  double cost = egoPlan.calculate_cost(_other_cars);
+  //double cost = egoPlan.calculate_cost(_other_cars);
 
   return egoPlan;
 }

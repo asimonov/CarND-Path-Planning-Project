@@ -16,7 +16,7 @@
 
 class BehaviourPlanner {
 public:
-    BehaviourPlanner(int num_lanes, double lane_width, Car ego, std::vector<Car> other_cars);
+    BehaviourPlanner(int num_lanes, double lane_width, Car ego, std::vector<Car>& other_cars);
 
     // Plans behavior of ego vehicle for up to time horizon T.
     // Returns state of ego vehicle representing the plan (target state, lane, distance, speed, acceleration)
@@ -26,7 +26,7 @@ private:
 
     int               _num_lanes;
     //double            _lane_width;
-    std::vector<Car>  _other_cars;
+    std::vector<Car>&  _other_cars;
     Car               _ego;
 };
 

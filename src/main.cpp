@@ -19,7 +19,7 @@ using json = nlohmann::json;
 
 
 // global variables.
-// Route is initialised in main. used in onMessage
+// Route (set of waypoints and code to spline them) is initialised in main. used in onMessage later.
 Route                    g_route;
 // planned state and final planned s coordinate are saved in onMessage after each planning cycle
 std::pair<Maneuvre, int> g_planned_state;
@@ -73,11 +73,18 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // Sensor Fusion Data, a list of all other cars on the same side of the road.
         auto sensor_fusion = j[1]["sensor_fusion"];
 
-        // log event
+
+        // log inputs
         auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
         // replace frenet with my own frenet estimates
         double car_s_mine = fr[0];
         double car_d_mine = fr[1];
+        cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
+             <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
+             <<" s="<<car_s_sim<<"(mine: "<<car_s_mine<<")"<<" d="<<car_d_sim<<"(mine:"<<car_d_mine<<")"
+             <<" yaw="<<car_yaw <<" v="<<car_speed
+             << endl;
+
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
@@ -133,14 +140,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         double ego_time = in_traj.getTotalT();
 
         // process sensor fusion and define all other cars on the road
-        //["sensor_fusion"] A 2d vector of cars and then that car's
-        // [car's unique ID,
-        //  car's x position in map coordinates,
-        //  car's y position in map coordinates,
-        //  car's x velocity in m/s,
-        //  car's y velocity in m/s,
-        //  car's s position in frenet coordinates,
-        //  car's d position in frenet coordinates.]
         vector<Car> other_cars;
         for (int i = 0; i < sensor_fusion.size(); i++) {
           int id = sensor_fusion[i][0];
@@ -150,7 +149,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
           double vx = sensor_fusion[i][3];
           double vy = sensor_fusion[i][4];
-          double v = sqrt(vx*vx+vy*vy); // assuming it is all in direction of s, none in d
+          double v = sqrt(vx*vx+vy*vy); // assuming speed magnitude is all in direction of s, none in d
           double yaw = atan2(vy,vx);
 
           double s = sensor_fusion[i][5];
@@ -159,6 +158,8 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           s = fr[0];
           d = fr[1];
           int lane = d / lane_width;
+          if (lane < 0 || lane>5)
+            continue; // ignore cars outside of driveable area
           double a = 0.0;
           double v_target = v;
           Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target, max_speed, max_acceleration, max_jerk);
@@ -173,13 +174,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Trajectory out_tr = in_traj;
 
         if ( fr_planned[0] - fr_now[0] < re_planning_s_horizon) {
-          // log inputs
-          cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
-               <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
-               <<" s="<<car_s_sim<<"(mine: "<<car_s_mine<<")"<<" d="<<car_d_sim<<"(mine:"<<car_d_mine<<")"
-               <<" yaw="<<car_yaw <<" v="<<car_speed
-               << endl;
-
           // plan maneuvre using behaviour planner
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
           const double time_horizon_s = 5.0; // max planning time horizon, in seconds
@@ -197,7 +191,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_1_sf";
           for (auto c : other_cars)
           {
-            c.dumpToStream(ss.str());
+            c.dumpToStream(ss.str()); // sensor fusion as of end of planned trajectory, so far
           }
           // dump planned ego
           ss.str("");
@@ -227,6 +221,10 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
                << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
                << endl;
         }
+
+
+
+
 
         // send control message back to the simulator
         json msgJson;
@@ -269,9 +267,6 @@ int main() {
     prev_xy = xy;
   }
   f.close();
-  //auto xy = route.get_XY(	6938.5, 6.0);
-  //auto fr = route.get_frenet(xy[0], xy[1], deg2rad(-2));
-  //auto fr = route.get_frenet(930.947, 1129.04, 0);
 
   h.onMessage(onMessage);
 

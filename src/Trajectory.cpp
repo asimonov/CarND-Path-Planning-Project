@@ -7,8 +7,10 @@
 #include "coordinate_utils.h"
 #include <limits>
 #include <fstream>
+#include <iomanip>
 
 using namespace std;
+
 
 Trajectory::Trajectory()
 {
@@ -464,43 +466,43 @@ void Trajectory::dump_to_file(const std::string& filename) const
   int n = _x_vals.size();
   for (int i=0;i<n;i++)
   {
-    f<<(i*_dt)<<" "<<_x_vals[i]<<" "<<_y_vals[i]<<endl;
+    f<< std::setw(6) << std::setfill('0')<<(i*_dt)<<" "<<_x_vals[i]<<" "<<_y_vals[i]<<endl;
   }
 
   f<<endl;
 
-  f<<"dist"<<endl;
+  f<<"t, dist"<<endl;
   n = _dist.size();
   for (int i=0;i<n;i++)
-    f<<_dist[i]<<endl;
+    f<< std::setw(6) << std::setfill('0')<<((i+1)*_dt)<<" "<<_dist[i]<<endl;
 
   f<<endl;
 
-  f<<"speed"<<endl;
+  f<<"t, speed"<<endl;
   n = _speed.size();
   for (int i=0;i<n;i++)
-    f<<_speed[i]<<endl;
+    f<< std::setw(6) << std::setfill('0')<<((i+1)*_dt)<<" "<<_speed[i]<<endl;
 
   f<<endl;
 
-  f<<"acceleration"<<endl;
+  f<<"t, acceleration"<<endl;
   n = _acceleration.size();
   for (int i=0;i<n;i++)
-    f<<_acceleration[i]<<endl;
+    f<< std::setw(6) << std::setfill('0')<<((i+2)*_dt)<<" "<<_acceleration[i]<<endl;
 
   f<<endl;
 
   f<<"jerk"<<endl;
   n = _jerk.size();
   for (int i=0;i<n;i++)
-    f<<_jerk[i]<<endl;
+    f<< std::setw(6) << std::setfill('0')<<((i+3)*_dt)<<" "<<_jerk[i]<<endl;
 
   f<<endl;
 
-  f<<"heading, degrees"<<endl;
+  f<<"t, heading (degrees)"<<endl;
   n = _heading.size();
   for (int i=0;i<n;i++)
-    f<<rad2deg(_heading[i])<<endl;
+    f<<(i*_dt)<<" "<<rad2deg(_heading[i])<<endl;
 
   f<<endl;
 

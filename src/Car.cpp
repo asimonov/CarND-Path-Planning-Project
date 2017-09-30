@@ -77,9 +77,11 @@ void Car::generate_predictions(double T, double dt)
     case CHANGE_LANE:
       for (double t=0; t<=T; t+=dt) {
         double s = _s + _speed * t + 0.5 * _acceleration * t * t;
+        // assume lane change happens in the middle of time horizon
         if (t<=T/2.0)
-          l = _lane; // assume lane change happens in the middle of time horizon
-        _predictions.push_back({l, s});
+          _predictions.push_back({_lane, s});
+        else
+          _predictions.push_back({l, s});
       }
       break;
   }
@@ -126,6 +128,7 @@ double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double ma
 
 void Car::setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& other_cars, double maneuvre_time)
 {
+  // sets _state, _lane, _acceleration
   _state = state;
   Maneuvre m = _state.first;
   int l = _state.second;
@@ -201,7 +204,7 @@ double Car::get_target_time() const
 {
   assert(_predictions_dt>0);
   assert(_predictions.size());
-  return (_predictions.size()-1)*_predictions_dt;
+  return (_predictions.size())*_predictions_dt;
 }
 
 int    Car::get_target_lane() const
@@ -220,8 +223,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   // cost boundaries for each instance of priced event
   // all costs are between MIN and MAX, before priority levels are applied
-  const double MIN_COST   = +0.;
-  const double MAX_COST   = +1.;
+  const double MIN_COST   = 0.0;
+  const double MAX_COST   = 1.0;
   // priority levels for different costs
   const double COLLISION  = 100;
   const double DANGER     = 50;
@@ -231,47 +234,56 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   double collision_cost = MIN_COST;
   double buffer_cost = MIN_COST;
-  int lane_change_count = 0;
   assert(_predictions_dt>0);
   assert(_predictions.size());
   double maneuvre_time = (_predictions.size()-1) * _predictions_dt;
   double maneuvre_distance = (_predictions[_predictions.size()].second - _predictions[0].second);
 
-  for (auto it=other_cars.begin(); it!=other_cars.end(); it++)
+  for (auto other_car=other_cars.begin(); other_car!=other_cars.end(); other_car++)
   {
-    assert(_predictions_dt = it->_predictions_dt); // make sure our time steps are same for predictions
-    int ego_lane = _lane; // initial lane
+    assert(_predictions_dt = other_car->_predictions_dt); // make sure our time steps are same for predictions
     double this_car_buffer_cost = MIN_COST;
-    for (int i=0; i<min(_predictions.size(), it->_predictions.size()); i++)
+    double initial_distance = _s - (other_car->getS()+LENGTH);
+    for (int i=0; i<min(_predictions.size(), other_car->_predictions.size()); i++)
     {
-      if (ego_lane != _predictions[i].first)
-        lane_change_count += 1;
-      ego_lane = _predictions[i].first; // possibly changed lane
-      int other_lane = it->_predictions[i].first;
-      if (_s > it->getS()+LENGTH) {
-        // only take into consideration cars which were initially in front.
-        // If they are behind, it is their problem to keep distance and avoid collisions
-        break;
-      }
-      if (ego_lane == other_lane)
+      int other_lane = other_car->_predictions[i].first;
+      if (_predictions[i].first == other_lane)
       {
         double ego_s = _predictions[i].second;
-        double other_s = it->_predictions[i].second;
-        // TODO take care of S wrapping around zero
-        if (fabs(ego_s - other_s) < LENGTH) {
-          collision_cost += MAX_COST;
+        double other_s = other_car->_predictions[i].second;
+        double abs_distance = fabs(ego_s - other_s);
+
+        // taking care of S wrapping around zero in an ugly manner. we should ask Route about max s, but we do not have
+        // it here. so hardcoding for this particular task. ugly ugly...
+        if (abs_distance > 6945.554)
+          abs_distance -= 6945.554;
+
+        const int NUM_BUFFER_LENGTHS = 5;
+
+        if (abs_distance < LENGTH) {
+          if (initial_distance>0)
+            // we were ahead
+            if (initial_distance < NUM_BUFFER_LENGTHS*LENGTH && _state.first == CHANGE_LANE)
+              // we were slightly ahead but cut him up. should not really do this...
+              collision_cost += MAX_COST / 10;
+            else
+              ; // not our problem.
+          else
+            // we were behind and crashed into other car. baaaaad
+            collision_cost += MAX_COST;
           break;
         }
-        const int NUM_BUFFER_LENGTHS = 10;
-        if (fabs(ego_s - other_s) < NUM_BUFFER_LENGTHS*LENGTH)
+
+        if (initial_distance < 0 && abs_distance < 2*NUM_BUFFER_LENGTHS*LENGTH)
         {
           // only take buffer into consideration if we are behind a car initially.
-          // they they are behind, it is their problem to keep distance.
+          // they they are behind, other_car is their problem to keep distance.
           // Expression in logistic function should be between 0 and 5.
-          double bcost = MAX_COST - logistic( fabs(ego_s - other_s) / (2*NUM_BUFFER_LENGTHS*LENGTH) );
+          double bcost = MAX_COST - logistic( abs_distance / (NUM_BUFFER_LENGTHS*LENGTH) );
           if (bcost > this_car_buffer_cost)
             this_car_buffer_cost = bcost;
         }
+
       }
     }
     if (this_car_buffer_cost > buffer_cost)
@@ -286,19 +298,23 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   //  change_lane_cost. drops with length of the maneuvre, if we did change lane
   double lane_change_cost = MIN_COST;
+  int lane_change_count = 0;
+  if (_state.first == CHANGE_LANE)
+    lane_change_count = 1;
   if (lane_change_count)
   {
-    // lane change should not take more than 3 seconds
-    if (maneuvre_time > 4.5)
+    if (maneuvre_time > 3.0)
+      // lane change should not take more than 3 seconds
       lane_change_cost = MAX_COST;
     else
-      lane_change_cost = logistic(15 * (lane_change_count*WIDTH) / maneuvre_distance);
+      // but lane change should not be very rushed, should be extended over some time
+      lane_change_cost = logistic(10.0 / maneuvre_distance);
   }
   total_cost += COMFORT * lane_change_cost;
 
 
   double max_speed = -1e+10;
-  double max_acceleration = max_speed;
+  double max_acceleration = -1e+10;
   double prev_s = _s;
   double max_s = _s;
   double max_backwards_distance = 0.0;
@@ -314,8 +330,12 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
       if (max_s - next_s > max_backwards_distance)
         max_backwards_distance = max_s - next_s;
     }
-    // TODO take care of S wrapping around zero
-    double v = (next_s - prev_s) / _predictions_dt;
+    double dist = next_s - prev_s;
+    // taking care of S wrapping around zero in an ugly manner. we should ask Route about max s, but we do not have
+    // it here. so hardcoding for this particular task. ugly ugly...
+    if (dist > 6945.554)
+      dist -= 6945.554;
+    double v = dist / _predictions_dt;
     if (v > max_speed)
       max_speed = v;
     double a = (v - prev_v) / _predictions_dt;
@@ -337,6 +357,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   double max_acceleration_cost = 0.0;
   if (max_acceleration > 0.8 * _max_acceleration && max_acceleration < _max_acceleration)
     max_acceleration_cost = (max_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
+  if (max_acceleration > _max_acceleration)
+    max_acceleration_cost = MAX_COST;
   total_cost += COMFORT * max_acceleration_cost;
 
   //  inefficiency_cost, maximize average speed
@@ -351,17 +373,21 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
     go_backwards_cost = logistic(max_backwards_distance);
   total_cost += COMFORT * go_backwards_cost;
 
+  // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
+  if (_state.first == PREPARE_CHANGE_LANE)
+    total_cost *= 1.02; // make it 2 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
+
   return total_cost;
 }
 
 void Car::dumpToStream(const std::string& filename) const
 {
   ofstream out_stream(filename.c_str(), ios_base::app);
+  out_stream << "lane : "<< _lane << endl;
   out_stream << "id   : "<< _id << endl;
   out_stream << "x,y  : "<< _x << " " << _y << endl;
   out_stream << "yaw  : "<< _yaw << endl;
   out_stream << "s,d  : "<< _s << " " << _d << endl;
-  out_stream << "lane : "<< _lane << endl;
   out_stream << "speed: "<< _speed << endl;
   out_stream << "acc  : "<< _acceleration << endl;
   out_stream << "maneuvre : "<< _state.first << endl;
