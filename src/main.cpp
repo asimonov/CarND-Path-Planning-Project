@@ -92,7 +92,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(44.0); // target speed in meter/second
+        const double target_speed = mph2ms(43.5); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -111,12 +111,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 #endif
 
         // define ego car as of where simulator is now
+        double ego_sim_x = car_x;
+        double ego_sim_y = car_y;
+        double ego_sim_yaw = car_yaw;
+
+        int car_lane = int(car_d_mine / lane_width);
         double car_acceleration = 0.0;
-        int car_lane = car_d_mine / lane_width;
-        Car ego_sim(Car::getEgoID(),
-                car_x, car_y, deg2rad(car_yaw), car_s_mine, car_d_mine,
-                car_lane, car_speed, car_acceleration,
-                target_speed, max_speed, max_acceleration);
 
         // define ego car object, as of end of retained trajectory
         if (in_traj.getSize())
@@ -170,11 +170,13 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         }
 
         // see if we want to plan ahead on this message
-        auto fr_now =     g_route.get_frenet(ego_sim.getX(), ego_sim.getY(), ego_sim.getYaw());
+        auto fr_now =     g_route.get_frenet(ego_sim_x, ego_sim_y, ego_sim_yaw);
         auto fr_planned = g_route.get_frenet(ego.getX(),     ego.getY(),     ego.getYaw());
         double planned_distance = fr_planned[0] - fr_now[0];
         if (planned_distance > g_route.get_max_s())
           planned_distance -= g_route.get_max_s();
+        if (planned_distance < 0)
+          planned_distance += g_route.get_max_s();
         double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         Trajectory out_tr = in_traj;
 
