@@ -91,7 +91,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(46.0); // target speed in meter/second
+        const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -114,7 +114,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Car ego_sim(Car::getEgoID(),
                 car_x, car_y, deg2rad(car_yaw), car_s_mine, car_d_mine,
                 car_lane, car_speed, car_acceleration,
-                target_speed, max_speed, max_acceleration, max_jerk);
+                target_speed, max_speed, max_acceleration);
 
         // define ego car object, as of end of retained trajectory
         if (in_traj.getSize())
@@ -136,7 +136,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         Car ego(Car::getEgoID(),
                 car_x, car_y, deg2rad(car_yaw), car_s_mine, car_d_mine,
                 car_lane, car_speed, car_acceleration,
-                target_speed, max_speed, max_acceleration, max_jerk);
+                target_speed, max_speed, max_acceleration);
         double ego_time = in_traj.getTotalT();
 
         // process sensor fusion and define all other cars on the road
@@ -162,7 +162,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
             continue; // ignore cars outside of driveable area
           double a = 0.0;
           double v_target = v;
-          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target, max_speed, max_acceleration, max_jerk);
+          Car other_car_at_zero(id, x, y, yaw, s, d, lane, v, a, v_target, max_speed, max_acceleration);
           // now create state of other cars as of end time of ego trajectory
           other_cars.push_back(other_car_at_zero.advance(ego_time));
         }
@@ -180,9 +180,10 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           Car ego_plan = bp.plan(time_horizon_s);
           auto new_state = ego_plan.getState();
           double planning_time = ego_plan.get_target_time();
+          double cost = bp.calculate_cost(ego_plan);
 
           cout << "Old State: " << g_planned_state.first << ", target lane = " << g_planned_state.second << endl;
-          cout << "behaviour cost: " << ego_plan.calculate_cost(other_cars) << endl;
+          cout << "behaviour cost: " << cost << endl;
           cout << "New State: " << new_state.first << ", target lane = " << new_state.second << ", target time = "
                << planning_time << " secs" << endl;
 

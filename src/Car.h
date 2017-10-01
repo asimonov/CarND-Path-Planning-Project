@@ -17,6 +17,9 @@ enum Maneuvre
     CHANGE_LANE
 };
 
+// car location predictions (lane, s_coordinate) spaced at dt
+typedef std::vector<std::pair<int, double>> predictions_type;
+
 
 class Car {
 public:
@@ -29,7 +32,7 @@ public:
         int lane,
         double speed, double acceleration,
         double target_speed,
-        double max_speed, double max_acceleration, double max_jerk
+        double max_speed, double max_acceleration
     );
 
     // return a copy with evolved state of this car (s,speed) to time T
@@ -43,7 +46,9 @@ public:
     double getD() const { return _d; }
     int getLane() const { return _lane; }
     double getSpeed() const { return _speed; }
+    double getMaxSpeed() const { return _max_speed; }
     double getAcceleration() const { return _acceleration; }
+    double getMaxAcceleration() const { return _max_acceleration; }
     double getTargetSpeed() const { return _target_speed; }
     std::pair<Maneuvre, int> getState() const { return _state; }
     double getLength() const {return LENGTH;}
@@ -53,8 +58,9 @@ public:
     void setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& other_cars, double maneuvre_time);
     // updates internal state with trajectory spaced at dt up till T
     void generate_predictions(double T, double dt);
+    const predictions_type& get_predictions() const;
     // calculates cost function of internal trajectory given trajectories of other cars
-    double calculate_cost(const std::vector<Car>& other_cars);
+    //double calculate_cost(const std::vector<Car>& other_cars);
     // get planned time horizon
     double get_target_time() const;
     int    get_target_lane() const;
@@ -83,12 +89,11 @@ private:
     double _target_speed;
     double _max_speed;
     double _max_acceleration;
-    double _max_jerk;
 
     std::pair<Maneuvre, int> _state; // string representing state (KL, LC, PLC) and target_lane
     // internal predicted state
     double _predictions_dt;
-    std::vector<std::pair<int, double>> _predictions; // predicted state (lane,s) spaced at _predictions_dt
+    predictions_type _predictions; // predicted state (lane,s) spaced at _predictions_dt
     double maxAccelerationForLane(const std::vector<Car>& other_cars, double maneuvre_time);
 };
 

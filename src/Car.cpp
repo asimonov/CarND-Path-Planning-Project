@@ -17,7 +17,7 @@ Car::Car(int id,
          int lane,
          double speed, double acceleration,
          double target_speed,
-         double max_speed, double max_acceleration, double max_jerk
+         double max_speed, double max_acceleration
 )
 {
   _id = id;
@@ -36,8 +36,6 @@ Car::Car(int id,
   _max_speed = max_speed;
   assert(max_acceleration>0);
   _max_acceleration = max_acceleration;
-  assert(max_jerk>0);
-  _max_jerk = max_jerk;
 
   _state = pair<Maneuvre ,int>(CONSTANT_SPEED, _lane); // default state
   _predictions_dt = -1.0;
@@ -86,6 +84,12 @@ void Car::generate_predictions(double T, double dt)
       break;
   }
 }
+
+const predictions_type& Car::get_predictions() const
+{
+  return _predictions;
+}
+
 
 double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double maneuvre_time) {
   double delta_v_til_target = _target_speed - _speed;
@@ -207,7 +211,7 @@ double Car::get_target_time() const
 {
   assert(_predictions_dt>0);
   assert(_predictions.size());
-  return (_predictions.size())*_predictions_dt;
+  return (_predictions.size()-1)*_predictions_dt;
 }
 
 int    Car::get_target_lane() const
@@ -220,163 +224,167 @@ int    Car::get_target_lane() const
 
 
 // calculates cost function of internal trajectory given trajectories of other cars
-double Car::calculate_cost(const std::vector<Car>& other_cars)
-{
-  double total_cost = 0.0;
-
-  // cost boundaries for each instance of priced event
-  // all costs are between MIN and MAX, before priority levels are applied
-  const double MIN_COST   = 0.0;
-  const double MAX_COST   = 1.0;
-  // priority levels for different costs
-  const double COLLISION  = 100;
-  const double DANGER     = 50;
-  //const double REACH_GOAL = 1e+5;
-  const double COMFORT    = 20;
-  const double EFFICIENCY = 30;
-
-  double collision_cost = MIN_COST;
-  double buffer_cost = MIN_COST;
-  assert(_predictions_dt>0);
-  assert(_predictions.size());
-  double maneuvre_time = (_predictions.size()-1) * _predictions_dt;
-  double maneuvre_distance = (_predictions[_predictions.size()-1].second - _predictions[0].second);
-
-  for (auto other_car=other_cars.begin(); other_car!=other_cars.end(); other_car++)
-  {
-    assert(_predictions_dt = other_car->_predictions_dt); // make sure our time steps are same for predictions
-    double this_car_buffer_cost = MIN_COST;
-    double initial_distance = _s - (other_car->getS()+LENGTH);
-    for (int i=0; i<min(_predictions.size(), other_car->_predictions.size()); i++)
-    {
-      int other_lane = other_car->_predictions[i].first;
-      if (_predictions[i].first == other_lane)
-      {
-        double ego_s = _predictions[i].second;
-        double other_s = other_car->_predictions[i].second;
-        double abs_distance = fabs(ego_s - other_s);
-
-        // taking care of S wrapping around zero in an ugly manner. we should ask Route about max s, but we do not have
-        // it here. so hardcoding for this particular task. ugly ugly...
-        if (abs_distance > 6945.554)
-          abs_distance -= 6945.554;
-
-        const int NUM_BUFFER_LENGTHS = 4;
-
-        if (abs_distance < LENGTH) {
-          if (initial_distance>0)
-            // we were ahead
-            if (initial_distance < NUM_BUFFER_LENGTHS*LENGTH && _state.first == CHANGE_LANE)
-              // we were slightly ahead but cut him up. should not really do this...
-              collision_cost += MAX_COST / 10;
-            else
-              ; // not our problem.
-          else
-            // we were behind and crashed into other car. baaaaad
-            collision_cost += MAX_COST;
-          break;
-        }
-
-        if (initial_distance < 0 && abs_distance < 2*NUM_BUFFER_LENGTHS*LENGTH)
-        {
-          // only take buffer into consideration if we are behind a car initially.
-          // they they are behind, other_car is their problem to keep distance.
-          // Expression in logistic function should be between 0 and 5.
-          double bcost = MAX_COST - logistic( abs_distance / (NUM_BUFFER_LENGTHS*LENGTH) );
-          if (bcost > this_car_buffer_cost)
-            this_car_buffer_cost = bcost;
-        }
-
-      }
-    }
-    if (this_car_buffer_cost > buffer_cost)
-      buffer_cost = this_car_buffer_cost;
-  }
-
-  //  collision_cost
-  total_cost += COLLISION * collision_cost;
-
-  //  buffer_cost,
-  total_cost += DANGER * buffer_cost;
-
-  //  change_lane_cost. drops with length of the maneuvre, if we did change lane
-  double lane_change_cost = MIN_COST;
-  if (_state.first == CHANGE_LANE)
-  {
-    if (maneuvre_time > 3.0 || _speed < 3.0)
-      // lane change should not take more than 3 seconds
-      // and we should not try to change lane until we speed up somewhat
-      lane_change_cost = MAX_COST;
-    else {
-      // but lane change should not be very rushed, should be extended over some time
-      // normal acceleration at constant speed is proportional to square speed
-      // and inversely proportional to curvature, which is roughly maneuvre distance
-      double avg_speed = maneuvre_distance/maneuvre_time;
-      lane_change_cost = logistic(pow(avg_speed/4., 2) / (maneuvre_distance/2.));
-    }
-  }
-  else if (_state.first == PREPARE_CHANGE_LANE)
-  {
-    // it is not full blown lane change, but it involves us slowing down potentially
-    // so we discourage this.
-    // will also result in less lane changes
-    lane_change_cost = MAX_COST / 2;
-  }
-  total_cost += COMFORT * lane_change_cost;
-
-  // speed related costs
-  double start_speed = _speed;
-  double end_speed = start_speed + _acceleration * maneuvre_time;
-  double max_speed = max(start_speed, end_speed);
-  double min_speed = min(start_speed, end_speed);
-
-  // speed limit cost
-  double speed_limit_cost = 0.0;
-  if (max_speed > _max_speed)
-    speed_limit_cost = MAX_COST;
-  else if (max_speed > _target_speed && max_speed < _max_speed)
-    speed_limit_cost = (max_speed - _target_speed) * MAX_COST / (_max_speed - _target_speed);
-  total_cost += DANGER * speed_limit_cost;
-
-  // negative speed cost
-  double negative_speed_cost = 0.0;
-  if (min_speed < 0.0)
-    negative_speed_cost = MAX_COST;
-  total_cost += EFFICIENCY * negative_speed_cost;
-
-  // max acceleration cost
-  double max_acceleration_cost = 0.0;
-  if (_acceleration > _max_acceleration)
-    max_acceleration_cost = MAX_COST;
-  else if (_acceleration > 0.8 * _max_acceleration && _acceleration < _max_acceleration)
-    max_acceleration_cost = (_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
-  total_cost += COMFORT * max_acceleration_cost;
-
-  // maximize average speed
-  // TODO handle s wrapping around the track to zero
-  double avg_speed = maneuvre_distance / maneuvre_time;
-  double SPEED_SENSITIVITY = 5;
-  double avg_speed_cost = 1.0 - logistic((avg_speed - _target_speed)/SPEED_SENSITIVITY);
-  total_cost += EFFICIENCY * avg_speed_cost;
-
-  // penalise deceleration
-  double neg_acceleration_cost = 0.0;
-  if (_acceleration < 0)
-    neg_acceleration_cost = logistic(fabs(_acceleration) / (_max_acceleration/2.0));
-  total_cost += EFFICIENCY * neg_acceleration_cost;
-
-  // penalise big acceleration/deceleration
-  double acceleration_cost = logistic(pow(_acceleration / (_max_acceleration/2.5), 2));
-  total_cost += COMFORT * acceleration_cost;
-
-  // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
-  if (_state.first == PREPARE_CHANGE_LANE)
-    total_cost *= 1.05; // make it 5 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
-  if (_state.first == CHANGE_LANE)
-    total_cost *= 1.1; // make it 10 percent more costly to CHANGE_LANE to favour KEEP_LANE provided all else is equal
-
-  return total_cost;
-}
+//double Car::calculate_cost(const std::vector<Car>& other_cars)
+//{
+//  double total_cost = 0.0;
+//
+//  // cost boundaries for each instance of priced event
+//  // all costs are between MIN and MAX, before priority levels are applied
+//  const double MIN_COST   = 0.0;
+//  const double MAX_COST   = 1.0;
+//  // priority levels for different costs
+//  const double COLLISION  = 100;
+//  const double DANGER     = 50;
+//  //const double REACH_GOAL = 1e+5;
+//  const double COMFORT    = 20;
+//  const double EFFICIENCY = 30;
+//
+//  double collision_cost = MIN_COST;
+//  double buffer_cost = MIN_COST;
+//  assert(_predictions_dt>0);
+//  assert(_predictions.size());
+//  double maneuvre_time = (_predictions.size()-1) * _predictions_dt;
+//  double maneuvre_distance = (_predictions[_predictions.size()-1].second - _predictions[0].second);
+//
+//  for (auto other_car=other_cars.begin(); other_car!=other_cars.end(); other_car++)
+//  {
+//    assert(_predictions_dt = other_car->_predictions_dt); // make sure our time steps are same for predictions
+//    double this_car_buffer_cost = MIN_COST;
+//    double initial_distance = _s - (other_car->getS()+LENGTH);
+//    for (int i=0; i<min(_predictions.size(), other_car->_predictions.size()); i++)
+//    {
+//      int other_lane = other_car->_predictions[i].first;
+//      if (_predictions[i].first == other_lane)
+//      {
+//        double ego_s = _predictions[i].second;
+//        double other_s = other_car->_predictions[i].second;
+//        double abs_distance = fabs(ego_s - other_s);
+//
+//        // taking care of S wrapping around zero in an ugly manner. we should ask Route about max s, but we do not have
+//        // it here. so hardcoding for this particular task. ugly ugly...
+//        if (abs_distance > 6945.554)
+//          abs_distance -= 6945.554;
+//
+//        const int NUM_BUFFER_LENGTHS = 4;
+//
+//        if (abs_distance < LENGTH) {
+//          if (initial_distance>0)
+//            // we were ahead
+//            if (initial_distance < NUM_BUFFER_LENGTHS*LENGTH && _state.first == CHANGE_LANE)
+//              // we were slightly ahead but cut him up. should not really do this...
+//              collision_cost += MAX_COST / 10;
+//            else
+//              ; // not our problem.
+//          else
+//            // we were behind and crashed into other car. baaaaad
+//            collision_cost += MAX_COST;
+//          break;
+//        }
+//
+//        if (initial_distance < 0 && abs_distance < 2*NUM_BUFFER_LENGTHS*LENGTH)
+//        {
+//          // only take buffer into consideration if we are behind a car initially.
+//          // they they are behind, other_car is their problem to keep distance.
+//          // Expression in logistic function should be between 0 and 5.
+//          double bcost = MAX_COST - logistic( abs_distance / (NUM_BUFFER_LENGTHS*LENGTH) );
+//          if (bcost > this_car_buffer_cost)
+//            this_car_buffer_cost = bcost;
+//        }
+//
+//      }
+//    }
+//    if (this_car_buffer_cost > buffer_cost)
+//      buffer_cost = this_car_buffer_cost;
+//  }
+//
+//  //  collision_cost
+//  total_cost += COLLISION * collision_cost;
+//
+//  //  buffer_cost,
+//  total_cost += DANGER * buffer_cost;
+//
+//  //  change_lane_cost. drops with length of the maneuvre, if we did change lane
+//  double lane_change_cost = MIN_COST;
+//  if (_state.first == CHANGE_LANE)
+//  {
+//    if (maneuvre_time > 3.0 || _speed < 3.0)
+//      // lane change should not take more than 3 seconds
+//      // and we should not try to change lane until we speed up somewhat
+//      lane_change_cost = MAX_COST;
+//    else {
+//      // but lane change should not be very rushed, should be extended over some time
+//      // normal acceleration at constant speed is proportional to square speed
+//      // and inversely proportional to curvature, which is roughly maneuvre distance
+//      double avg_speed = maneuvre_distance/maneuvre_time;
+//      lane_change_cost = logistic(pow(avg_speed/4., 2) / (maneuvre_distance/2.));
+//    }
+//  }
+//  else if (_state.first == PREPARE_CHANGE_LANE)
+//  {
+//    // it is not full blown lane change, but it involves us slowing down potentially
+//    // so we discourage this.
+//    // will also result in less lane changes
+//    lane_change_cost = MAX_COST / 2;
+//  }
+//  total_cost += COMFORT * lane_change_cost;
+//
+//  // speed related costs
+//  double start_speed = _speed;
+//  double end_speed = start_speed + _acceleration * maneuvre_time;
+//  double max_speed = max(start_speed, end_speed);
+//  double min_speed = min(start_speed, end_speed);
+//
+//  // speed limit cost
+//  double speed_limit_cost = 0.0;
+//  if (max_speed > _max_speed)
+//    speed_limit_cost = MAX_COST;
+//  else if (max_speed > _target_speed && max_speed < _max_speed)
+//    speed_limit_cost = (max_speed - _target_speed) * MAX_COST / (_max_speed - _target_speed);
+//  total_cost += DANGER * speed_limit_cost;
+//
+//  // penalise negative speed
+//  double negative_speed_cost = 0.0;
+//  if (min_speed < 0.0)
+//    negative_speed_cost = MAX_COST;
+//  total_cost += EFFICIENCY * negative_speed_cost;
+//
+//  // penalise max acceleration
+//  double max_acceleration_cost = 0.0;
+//  if (_acceleration > _max_acceleration)
+//    max_acceleration_cost = MAX_COST;
+//  else if (_acceleration > 0.8 * _max_acceleration && _acceleration < _max_acceleration)
+//    max_acceleration_cost = (_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
+//  total_cost += COMFORT * max_acceleration_cost;
+//
+//  // maximize average speed
+//  // TODO handle s wrapping around the track to zero
+//  double avg_speed = maneuvre_distance / maneuvre_time;
+//  double SPEED_SENSITIVITY = 5;
+//  double avg_speed_cost = 1.0 - logistic((avg_speed - _target_speed)/SPEED_SENSITIVITY);
+//  total_cost += EFFICIENCY * avg_speed_cost;
+//
+//  // penalise deceleration
+//  double neg_acceleration_cost = 0.0;
+//  if (_acceleration < 0)
+//    neg_acceleration_cost = logistic(fabs(_acceleration) / (_max_acceleration/2.0));
+//  total_cost += EFFICIENCY * neg_acceleration_cost;
+//
+//  // penalise big acceleration/deceleration
+//  double acceleration_cost = logistic(pow(_acceleration / (_max_acceleration/2.5), 2));
+//  total_cost += COMFORT * acceleration_cost;
+//
+//  // penalise longer maneuvers
+//  double maneuvre_time_cost = logistic(maneuvre_time / 3.0);
+//  total_cost += EFFICIENCY * maneuvre_time_cost;
+//
+//  // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
+//  if (_state.first == PREPARE_CHANGE_LANE)
+//    total_cost *= 1.05; // make it 5 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
+//  if (_state.first == CHANGE_LANE)
+//    total_cost *= 1.1; // make it 10 percent more costly to CHANGE_LANE to favour KEEP_LANE provided all else is equal
+//
+//  return total_cost;
+//}
 
 void Car::dumpToStream(const std::string& filename) const
 {
