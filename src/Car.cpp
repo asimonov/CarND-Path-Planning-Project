@@ -352,7 +352,7 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
     max_acceleration_cost = (_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
   total_cost += COMFORT * max_acceleration_cost;
 
-  //  inefficiency_cost, maximize average speed
+  // maximize average speed
   // TODO handle s wrapping around the track to zero
   double avg_speed = maneuvre_distance / maneuvre_time;
   double SPEED_SENSITIVITY = 5;
@@ -364,6 +364,10 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   if (_acceleration < 0)
     neg_acceleration_cost = logistic(fabs(_acceleration) / (_max_acceleration/2.0));
   total_cost += EFFICIENCY * neg_acceleration_cost;
+
+  // penalise big acceleration/deceleration
+  double acceleration_cost = logistic(pow(_acceleration / (_max_acceleration/2.5), 2));
+  total_cost += COMFORT * acceleration_cost;
 
   // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
   if (_state.first == PREPARE_CHANGE_LANE)
