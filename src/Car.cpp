@@ -89,38 +89,40 @@ void Car::generate_predictions(double T, double dt)
 
 double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double maneuvre_time) {
   double delta_v_til_target = _target_speed - _speed;
-//  double t = maneuvre_time;
   double acc_til_target = delta_v_til_target / maneuvre_time; // can be negative
   double acc_sign = 1;
   if (acc_til_target<0) {
     acc_sign = -1;
   }
+  // this is acceleration to get to target speed in maneuvre_time. with no obstacles
   double max_acc = acc_sign * min(_max_acceleration * 0.8, fabs(acc_til_target));
 
-  //in_front = [v for (v_id, v) in predictions.items() if v[0]['lane'] == lane and v[0]['s'] > s]
+  // find nearest car in front that we may need to follow
   double leading_s_now = 1e+10;
-  double leading_next_pos = 0.0;
+  Car car(*this);
   for (auto it = other_cars.begin(); it != other_cars.end(); it++)
     if (it->getLane() == _lane && it->getS() > _s) {
       // there is car in front
       if (it->getS() < leading_s_now) {
         leading_s_now = it->getS();
-        leading_next_pos = it->advance(maneuvre_time).getS();
+        car = *it; // copy
       }
     }
 
-  if (leading_s_now < 1e+10 && acc_sign>0)
+  // adjust our acceleration based on leading vehicle
+  int NUM_LENGTHS_BEHIND_TARGET = 3;
+  if (leading_s_now < 1e+10)// && acc_sign>0)
   {
-    double my_next_pos = _s + _speed * maneuvre_time; // my position at current speed
-    double separation_next = leading_next_pos - my_next_pos;
-    double available_room = separation_next - 2*LENGTH; // add a buffer of 2 car lengths
-    double balancing_acceleration = 2*available_room / (maneuvre_time*maneuvre_time); // can be negative
-    if (balancing_acceleration<0) {
-      acc_sign = -1;
-      max_acc = acc_sign * min(_max_acceleration*0.8, fabs(balancing_acceleration));
-    } else {
-      max_acc = min(max_acc, balancing_acceleration);
-    }
+    double delta_s = (car.getS() - NUM_LENGTHS_BEHIND_TARGET*LENGTH) - _s;
+    delta_s += (car.getSpeed() - _speed)*maneuvre_time;
+    // calculate de/acceleration to end up behind that car at specified time horizon
+    double a = 2.0 * delta_s / (maneuvre_time * maneuvre_time);
+    if (a<max_acc)
+      max_acc = a;
+    if (max_acc<0)
+      max_acc = max(-_max_acceleration*0.8,max_acc);
+    else
+      max_acc = min(_max_acceleration*0.8,max_acc);
   }
 
   return max_acc;
@@ -148,6 +150,7 @@ void Car::setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& othe
       break;
     case PREPARE_CHANGE_LANE:
       int old_lane = _lane;
+      int NUM_LENGTHS_BEHIND_TARGET = 3;
       _lane = l;
       // what position we aim for, as of now, to merge into desired lane
       double best_target_s = _s;
@@ -165,7 +168,7 @@ void Car::setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& othe
         Car c = cars_copy[cars_copy.size()-1];
         // we are not interested in cars in front as we are not considering speeding up.
         // so we only look at cars behind our position+buffer
-        if (c.getS() > _s + 2*LENGTH)
+        if (c.getS() > _s + NUM_LENGTHS_BEHIND_TARGET*LENGTH)
         {
           cars_copy.pop_back();
           continue;
@@ -178,14 +181,14 @@ void Car::setState(std::pair<Maneuvre, int>& state, const std::vector<Car>& othe
         // TODO deal with S wrapping around to zero around the track, in which case it may be different car that we need
         sort(cars_copy.begin(), cars_copy.end(), [](const Car& x, const Car& y)->bool{return x.getS() > y.getS();});
         Car nearest_behind = cars_copy[0];
-        //Car nearest_behind_target = nearest_behind.advance(maneuvre_time);
 
         //double delta_v = nearest_behind.getSpeed() - _speed; // new speed is _speed plus delta
-        double delta_s = (nearest_behind.getS() - 2*LENGTH) - _s;// wanna end up behind that car
+        double delta_s = (nearest_behind.getS() - NUM_LENGTHS_BEHIND_TARGET*LENGTH) - _s; // negative distance
+        delta_s += (nearest_behind.getSpeed() - _speed)*maneuvre_time;
         // calculate [de]acceleration to end up behind that car at specified time horizon
-        double a = -2.0 * (delta_s + _speed*maneuvre_time) / (maneuvre_time * maneuvre_time);
+        double a = 2.0 * delta_s / (maneuvre_time * maneuvre_time);
         if (a<0)
-          _acceleration = -min(_max_acceleration*0.8,fabs(a));
+          _acceleration = max(-_max_acceleration*0.8,a);
         else
           _acceleration = min(_max_acceleration*0.8,a);
       }
@@ -258,7 +261,7 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
         if (abs_distance > 6945.554)
           abs_distance -= 6945.554;
 
-        const int NUM_BUFFER_LENGTHS = 5;
+        const int NUM_BUFFER_LENGTHS = 4;
 
         if (abs_distance < LENGTH) {
           if (initial_distance>0)
@@ -312,53 +315,32 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   }
   total_cost += COMFORT * lane_change_cost;
 
-
-  double max_speed = -1e+10;
-  double max_acceleration = -1e+10;
-  double prev_s = _s;
-  double max_s = _s;
-  double max_backwards_distance = 0.0;
-  double prev_v = _speed;
-  bool went_backwards = false;
-  for (int i=1; i<_predictions.size(); i++)
-  {
-    double next_s = _predictions[i].second;
-    if (next_s > max_s)
-      max_s = next_s;
-    if (next_s < max_s) {
-      went_backwards = true;
-      if (max_s - next_s > max_backwards_distance)
-        max_backwards_distance = max_s - next_s;
-    }
-    double dist = next_s - prev_s;
-    // taking care of S wrapping around zero in an ugly manner. we should ask Route about max s, but we do not have
-    // it here. so hardcoding for this particular task. ugly ugly...
-    if (dist > 6945.554)
-      dist -= 6945.554;
-    double v = dist / _predictions_dt;
-    if (v > max_speed)
-      max_speed = v;
-    double a = (v - prev_v) / _predictions_dt;
-    if (a> max_acceleration)
-      max_acceleration = a;
-    prev_s = next_s;
-    prev_v = v;
-  }
+  // speed related costs
+  double start_speed = _speed;
+  double end_speed = start_speed + _acceleration * maneuvre_time;
+  double max_speed = max(start_speed, end_speed);
+  double min_speed = min(start_speed, end_speed);
 
   // speed limit cost
   double speed_limit_cost = 0.0;
-  if (max_speed > _target_speed && max_speed < _max_speed)
-    speed_limit_cost = (max_speed - _target_speed) * MAX_COST / (_max_speed - _target_speed);
   if (max_speed > _max_speed)
     speed_limit_cost = MAX_COST;
+  else if (max_speed > _target_speed && max_speed < _max_speed)
+    speed_limit_cost = (max_speed - _target_speed) * MAX_COST / (_max_speed - _target_speed);
   total_cost += DANGER * speed_limit_cost;
+
+  // negative speed cost
+  double negative_speed_cost = 0.0;
+  if (min_speed < 0.0)
+    negative_speed_cost = MAX_COST;
+  total_cost += EFFICIENCY * negative_speed_cost;
 
   // max acceleration cost
   double max_acceleration_cost = 0.0;
-  if (max_acceleration > 0.8 * _max_acceleration && max_acceleration < _max_acceleration)
-    max_acceleration_cost = (max_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
-  if (max_acceleration > _max_acceleration)
+  if (_acceleration > _max_acceleration)
     max_acceleration_cost = MAX_COST;
+  else if (_acceleration > 0.8 * _max_acceleration && _acceleration < _max_acceleration)
+    max_acceleration_cost = (_acceleration - 0.8 * _max_acceleration) * MAX_COST / (_max_acceleration - 0.8*_max_acceleration);
   total_cost += COMFORT * max_acceleration_cost;
 
   //  inefficiency_cost, maximize average speed
@@ -367,11 +349,11 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   double avg_speed_cost = 1.0 - logistic(avg_speed / _target_speed);
   total_cost += EFFICIENCY * avg_speed_cost;
 
-  // disallow going backwards
-  double go_backwards_cost = MIN_COST;
-  if (went_backwards)
-    go_backwards_cost = logistic(max_backwards_distance);
-  total_cost += COMFORT * go_backwards_cost;
+  // penalise deceleration
+  double neg_acceleration_cost = 0.0;
+  if (_acceleration < 0)
+    neg_acceleration_cost = logistic(fabs(_acceleration) / (_max_acceleration/2.0));
+  total_cost += EFFICIENCY * neg_acceleration_cost;
 
   // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
   if (_state.first == PREPARE_CHANGE_LANE)
