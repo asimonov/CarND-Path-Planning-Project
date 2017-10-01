@@ -79,19 +79,20 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // replace frenet with my own frenet estimates
         double car_s_mine = fr[0];
         double car_d_mine = fr[1];
+#ifdef DEBUG
         cout << ts_ms_str() << "IN  n="<<setw(5)<<previous_path_x.size()
              <<" x  ="<<setw(8)<<car_x  <<" y  ="<<setw(8)<<car_y
              <<" s="<<car_s_sim<<"(mine: "<<car_s_mine<<")"<<" d="<<car_d_sim<<"(mine:"<<car_d_mine<<")"
              <<" yaw="<<car_yaw <<" v="<<car_speed
              << endl;
-
+#endif
 
         // planning constants
         const double dt_s = 0.02; // discretisation time length, in seconds
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(44.3); // target speed in meter/second
+        const double target_speed = mph2ms(44.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -171,10 +172,13 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // see if we want to plan ahead on this message
         auto fr_now =     g_route.get_frenet(ego_sim.getX(), ego_sim.getY(), ego_sim.getYaw());
         auto fr_planned = g_route.get_frenet(ego.getX(),     ego.getY(),     ego.getYaw());
+        double planned_distance = fr_planned[0] - fr_now[0];
+        if (planned_distance > g_route.get_max_s())
+          planned_distance -= g_route.get_max_s();
         double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         Trajectory out_tr = in_traj;
 
-        if ( fr_planned[0] - fr_now[0] < re_planning_s_horizon) {
+        if ( planned_distance < re_planning_s_horizon) {
           // plan maneuvre using behaviour planner
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
           const double time_horizon_s = 5.0; // max planning time horizon, in seconds
