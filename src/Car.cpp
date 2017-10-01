@@ -301,17 +301,18 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   //  change_lane_cost. drops with length of the maneuvre, if we did change lane
   double lane_change_cost = MIN_COST;
-  int lane_change_count = 0;
   if (_state.first == CHANGE_LANE)
-    lane_change_count = 1;
-  if (lane_change_count)
   {
     if (maneuvre_time > 3.0)
       // lane change should not take more than 3 seconds
       lane_change_cost = MAX_COST;
-    else
+    else {
       // but lane change should not be very rushed, should be extended over some time
-      lane_change_cost = logistic(10.0 / maneuvre_distance);
+      // normal acceleration at constant speed is proportional to square speed
+      // and inversely proportional to curvature, which is roughly maneuvre distance
+      double avg_speed = maneuvre_distance/maneuvre_time;
+      lane_change_cost = logistic(pow(avg_speed/5, 2) / maneuvre_distance);
+    }
   }
   total_cost += COMFORT * lane_change_cost;
 
@@ -346,7 +347,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   //  inefficiency_cost, maximize average speed
   // TODO handle s wrapping around the track to zero
   double avg_speed = maneuvre_distance / maneuvre_time;
-  double avg_speed_cost = 1.0 - logistic(avg_speed / _target_speed);
+  double SPEED_SENSITIVITY = 5;
+  double avg_speed_cost = 1.0 - logistic((avg_speed - _target_speed)/SPEED_SENSITIVITY);
   total_cost += EFFICIENCY * avg_speed_cost;
 
   // penalise deceleration
