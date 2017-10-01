@@ -92,21 +92,21 @@ Car BehaviourPlanner::plan(double T_horizon)
   pair<Maneuvre, int> best_state;
   double best_cost = 1e+10;
   double best_t = 0.0;
-  cout << "BP: start" << endl;
+  //cout << "BP: start" << endl;
   for (auto state : possible_states)
   {
-    cout << "BP: try state " << state.first << " " << state.second  << endl;
+    //cout << "BP: try state " << state.first << " " << state.second  << endl;
     // try several time horizons with each state, then choose based on cost
     for (double t=1.0; t<=T_horizon; t+=1.0) {
-      cout << "BP: try time " << t << endl;
+      //cout << "BP: try time " << t << endl;
       Car egoCopy = egoPlan;
       egoCopy.setState(state,_other_cars,t);
       egoCopy.generate_predictions(t, _dt); // this also sets time horizon for ego to chose
       //double cost = egoCopy.calculate_cost(_other_cars);
       double cost = calculate_cost(egoCopy);
-      cout << "BP: cost " << cost << ", acceleration " << egoCopy.getAcceleration() << " lane " << egoCopy.get_target_lane() <<  endl;
+      //cout << "BP: cost " << cost << ", acceleration " << egoCopy.getAcceleration() << " lane " << egoCopy.get_target_lane() <<  endl;
       if (cost < best_cost) {
-        cout << "BP: *** " <<  endl;
+        //cout << "BP: *** " <<  endl;
         best_cost = cost;
         best_state = state;
         best_t = t;

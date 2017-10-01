@@ -18,7 +18,7 @@ Route::~Route() {}
 double Route::get_max_s() const
 {
   // The max s value before wrapping around the track back to 0
-  double max_s = 6945.554;
+  double max_s = 6945.57;
 
 //  int n = _waypoints_s.size();
 //  double last_dist = euclidian_distance(_waypoints_x[n-1], _waypoints_y[n-1], _waypoints_x[0], _waypoints_y[0]);

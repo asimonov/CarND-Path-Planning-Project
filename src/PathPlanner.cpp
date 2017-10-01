@@ -91,9 +91,6 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
                                     double max_acceleration,
                                     double max_jerk)
 {
-//  // if planned trajectory is longer than time horizon, nothing to do
-//  if (trajectory.getTotalT() > T)
-//    return trajectory;
 
   // get final state of existing trajectory
   double curr_x = car.getX();
@@ -102,21 +99,6 @@ Trajectory JMTPlanner::extendTrajectory(const Car& car,
   double curr_speed = car.getSpeed();
   double curr_acceleration = car.getAcceleration();
   double curr_jerk = 0.0;
-//  int len = trajectory.getSize();
-//  if (len)
-//  {
-//    auto xy = trajectory.getFinalXY();
-//    curr_x = xy[0];
-//    curr_y = xy[1];
-//    if (len>1) {
-//      curr_speed = trajectory.getFinalSpeed();
-//      curr_yaw = trajectory.getFinalYaw();
-//    }
-//    if (len>2)
-//      curr_acceleration = trajectory.getFinalAcceleration();
-//    if (len>3)
-//      curr_jerk = trajectory.getFinalJerk();
-//  }
   auto fr = trajectory.getFinalFrenet();
   double curr_s = fr[0];
   double curr_d = fr[1];

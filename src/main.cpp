@@ -91,7 +91,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(45.0); // target speed in meter/second
+        const double target_speed = mph2ms(44.3); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -102,11 +102,12 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         else
           in_traj.storeFinalFrenet(car_s_sim, car_d_sim); // just use what came from simulator for first iteration
 
+#ifdef DEBUG
         // save debug trajectory info to a file
         std::stringstream ss;
         ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_0_in_traj";
         in_traj.dump_to_file(ss.str());
-
+#endif
 
         // define ego car as of where simulator is now
         double car_acceleration = 0.0;
@@ -187,6 +188,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           cout << "New State: " << new_state.first << ", target lane = " << new_state.second << ", target time = "
                << planning_time << " secs" << endl;
 
+#ifdef DEBUG
           // dump sensor fusion trace
           ss.str("");
           ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_1_sf";
@@ -198,18 +200,26 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           ss.str("");
           ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_2_ego";
           ego_plan.dumpToStream(ss.str());
-
+#endif
 
 
           // plan final trajectory (x,y points spaced at dt_s) using the maneuvre
           JMTPlanner planner;
           out_tr = planner.extendTrajectory(ego_plan, in_traj, g_route, planning_time, lane_width, target_speed, max_speed, max_acceleration, max_jerk);
+          // wrap final planned s around the track
+          fr = out_tr.getFinalFrenet();
+          if (fr[0] > g_route.get_max_s())
+            fr[0] -= g_route.get_max_s();
+          out_tr.storeFinalFrenet(fr[0], fr[1]);
+          // store final frenet coordinates for next round of planning
           g_final_frenet = out_tr.getFinalFrenet();
           cout << "New Planned s: "<<g_final_frenet[0] << endl;
 
+#ifdef DEBUG
           ss.str("");
           ss << "trace_" << std::setw(6) << std::setfill('0') << ts_ms() << "_3_out_traj";
           out_tr.dump_to_file(ss.str());
+#endif
 
           g_planned_state = new_state;
 
