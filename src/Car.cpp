@@ -232,8 +232,8 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   const double COLLISION  = 100;
   const double DANGER     = 50;
   //const double REACH_GOAL = 1e+5;
-  const double COMFORT    = 30;
-  const double EFFICIENCY = 15;
+  const double COMFORT    = 20;
+  const double EFFICIENCY = 30;
 
   double collision_cost = MIN_COST;
   double buffer_cost = MIN_COST;
@@ -303,16 +303,24 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   double lane_change_cost = MIN_COST;
   if (_state.first == CHANGE_LANE)
   {
-    if (maneuvre_time > 3.0)
+    if (maneuvre_time > 3.0 || _speed < 3.0)
       // lane change should not take more than 3 seconds
+      // and we should not try to change lane until we speed up somewhat
       lane_change_cost = MAX_COST;
     else {
       // but lane change should not be very rushed, should be extended over some time
       // normal acceleration at constant speed is proportional to square speed
       // and inversely proportional to curvature, which is roughly maneuvre distance
       double avg_speed = maneuvre_distance/maneuvre_time;
-      lane_change_cost = logistic(pow(avg_speed/5, 2) / maneuvre_distance);
+      lane_change_cost = logistic(pow(avg_speed/4., 2) / (maneuvre_distance/2.));
     }
+  }
+  else if (_state.first == PREPARE_CHANGE_LANE)
+  {
+    // it is not full blown lane change, but it involves us slowing down potentially
+    // so we discourage this.
+    // will also result in less lane changes
+    lane_change_cost = MAX_COST / 2;
   }
   total_cost += COMFORT * lane_change_cost;
 
@@ -359,7 +367,9 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
 
   // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
   if (_state.first == PREPARE_CHANGE_LANE)
-    total_cost *= 1.02; // make it 2 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
+    total_cost *= 1.05; // make it 5 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
+  if (_state.first == CHANGE_LANE)
+    total_cost *= 1.1; // make it 10 percent more costly to CHANGE_LANE to favour KEEP_LANE provided all else is equal
 
   return total_cost;
 }
