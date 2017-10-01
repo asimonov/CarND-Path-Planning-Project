@@ -240,7 +240,7 @@ double Car::calculate_cost(const std::vector<Car>& other_cars)
   assert(_predictions_dt>0);
   assert(_predictions.size());
   double maneuvre_time = (_predictions.size()-1) * _predictions_dt;
-  double maneuvre_distance = (_predictions[_predictions.size()].second - _predictions[0].second);
+  double maneuvre_distance = (_predictions[_predictions.size()-1].second - _predictions[0].second);
 
   for (auto other_car=other_cars.begin(); other_car!=other_cars.end(); other_car++)
   {
