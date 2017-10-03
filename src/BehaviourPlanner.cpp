@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
-#include "coordinate_utils.h"
+#include "helpers.h"
 
 using namespace std;
 
@@ -21,24 +21,9 @@ BehaviourPlanner::BehaviourPlanner(int num_lanes,
   _s_wrap_length = s_wrap_length;
 }
 
+
 Car BehaviourPlanner::plan(double T_horizon)
 {
-  /*
-  Updates the "state" of the ego vehicle based on 'best' maneuvre to take:
-
-  "KL" - Keep Lane
-   - The vehicle will attempt to drive its target speed, unless there is
-     traffic in front of it, in which case it will slow down.
-
-  "LC" - Lane Change (Left / Right -- see target_lane)
-   - The vehicle will change lanes and then follow longitudinal
-     behavior for the "KL" state in the new lane.
-
-  "PLC" - Prepare for Lane Change (Left / Right -- see target_lane)
-   - The vehicle will find the nearest vehicle in the adjacent lane which is
-     BEHIND itself and will adjust speed to try to get behind that vehicle.
-  */
-
   // generate predictions
   for(auto it = _other_cars.begin(); it!=_other_cars.end(); it++)
     it->generate_predictions(T_horizon, _dt);
@@ -69,7 +54,6 @@ Car BehaviourPlanner::plan(double T_horizon)
   else if (current_state.first == PREPARE_CHANGE_LANE) {
     // possible states from here: KL, LC, PLC
     int current_lane = egoPlan.getLane();
-    int target_lane = current_state.second;
     possible_states.push_back(pair<Maneuvre, int>(KEEP_LANE, current_lane));
     if (current_lane > 0) // can change left
     {
@@ -113,11 +97,12 @@ Car BehaviourPlanner::plan(double T_horizon)
       }
     }
   }
+
   egoPlan.setState(best_state,_other_cars,best_t);
   egoPlan.generate_predictions(best_t, _dt);
-
   return egoPlan;
 }
+
 
 double BehaviourPlanner::cyclic_dist(double s)
 {
@@ -129,6 +114,7 @@ double BehaviourPlanner::cyclic_dist(double s)
   }
   return res;
 }
+
 
 double BehaviourPlanner::calculate_cost(const Car& ego) {
   // we use _other_cars expecting them to have right state/predictions

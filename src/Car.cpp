@@ -5,7 +5,7 @@
 #include "Car.h"
 #include <math.h>
 #include <cassert>
-#include "coordinate_utils.h"
+#include "helpers.h"
 #include <fstream>
 #include <ios>
 
@@ -98,15 +98,15 @@ double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double ma
   double delta_v_til_target = _target_speed - _speed;
   double acc_til_target = delta_v_til_target / maneuvre_time; // can be negative
   double acc_sign = 1;
-  if (acc_til_target<0) {
+  if (acc_til_target<0)
     acc_sign = -1;
-  }
+
   // this is acceleration to get to target speed in maneuvre_time. with no obstacles
   double max_acc = acc_sign * min(_max_acceleration * 0.8, fabs(acc_til_target));
 
   // find nearest car in front that we may need to follow
   double leading_s_now = 1e+10;
-  Car car(*this);
+  Car car(*this); // placeholder object for car in front
   for (auto it = other_cars.begin(); it != other_cars.end(); it++)
     if (it->getLane() == _lane && it->getS() > _s) {
       // there is car in front

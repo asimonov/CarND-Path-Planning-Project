@@ -4,7 +4,7 @@
 
 #include "Trajectory.h"
 #include <cassert>
-#include "coordinate_utils.h"
+#include "helpers.h"
 #include <limits>
 #include <fstream>
 #include <iomanip>
