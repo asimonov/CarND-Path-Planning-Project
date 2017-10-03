@@ -126,6 +126,10 @@ In the video we see that the car can complete a few laps fully autonomously
 successfully avoiding other vehicles and trying to stay close to about
 44 miles per hour speed.
 
+The current implementation planning code runs in about 20 milliseconds
+on Intel Core i7 2.8Ghz CPU.
+
+
 ## Ways to Improve
 
 What can be added is ability to re-plan from earlier time horizon.
