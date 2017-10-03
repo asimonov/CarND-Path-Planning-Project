@@ -24,6 +24,7 @@ Trajectory::Trajectory()
   _max_jerk = numeric_limits<double>::min();
 }
 
+
 Trajectory::Trajectory(double dt)
 {
   _dt=dt;
@@ -35,6 +36,7 @@ Trajectory::Trajectory(double dt)
   _min_jerk = numeric_limits<double>::max();
   _max_jerk = numeric_limits<double>::min();
 }
+
 
 Trajectory::Trajectory(std::vector<double> x, std::vector<double> y, double dt) {
   assert(x.size() == y.size());
@@ -95,9 +97,11 @@ std::vector<double> Trajectory::getX() const {
   return _x_vals;
 }
 
+
 std::vector<double> Trajectory::getY() const {
   return _y_vals;
 }
+
 
 double Trajectory::getTotalT() const
 {
@@ -112,6 +116,7 @@ std::vector<double> Trajectory::getStartXY() const
   return {_x_vals[0], _y_vals[0]};
 }
 
+
 std::vector<double> Trajectory::getFinalXY() const
 {
   int n=_x_vals.size();
@@ -119,11 +124,13 @@ std::vector<double> Trajectory::getFinalXY() const
   return {_x_vals[n-1], _y_vals[n-1]};
 }
 
+
 double Trajectory::getStartYaw() const
 {
   assert(_x_vals.size()>1);
   return _heading[0];
 }
+
 
 double Trajectory::getFinalYaw() const
 {
@@ -132,16 +139,19 @@ double Trajectory::getFinalYaw() const
   return _heading[n-2];
 }
 
+
 void Trajectory::storeFinalFrenet(double s, double d)
 {
   _final_s = s;
   _final_d = d;
 }
 
+
 std::vector<double> Trajectory::getFinalFrenet() const
 {
   return {_final_s, _final_d};
 }
+
 
 void Trajectory::add(double x, double y) {
   _x_vals.push_back(x);
@@ -158,7 +168,7 @@ void Trajectory::add(double x, double y) {
       _min_speed = v;
     if (v>_max_speed)
       _max_speed = v;
-    _heading.push_back( angle             (_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]));
+    _heading.push_back( angle(_x_vals[n - 2], _y_vals[n - 2], _x_vals[n - 1], _y_vals[n - 1]) );
   }
   assert(n==_dist.size()+1);
   assert(n==_heading.size()+1);
@@ -184,6 +194,7 @@ void Trajectory::add(double x, double y) {
   assert(_acceleration.size()==0 || _acceleration.size()-1==_jerk.size());
 }
 
+
 double Trajectory::getStartSpeed() const
 {
   assert(_dt>0);
@@ -193,6 +204,7 @@ double Trajectory::getStartSpeed() const
     res = _speed[0];
   return res;
 }
+
 
 double Trajectory::getFinalSpeed() const
 {
@@ -204,6 +216,7 @@ double Trajectory::getFinalSpeed() const
   return res;
 }
 
+
 double Trajectory::getStartAcceleration() const
 {
   assert(_dt>0);
@@ -213,6 +226,7 @@ double Trajectory::getStartAcceleration() const
     res = _acceleration[0];
   return res;
 }
+
 
 double Trajectory::getFinalAcceleration() const
 {
@@ -224,6 +238,7 @@ double Trajectory::getFinalAcceleration() const
   return res;
 }
 
+
 double Trajectory::getStartJerk() const
 {
   assert(_dt>0);
@@ -233,6 +248,7 @@ double Trajectory::getStartJerk() const
     res = _jerk[0];
   return res;
 }
+
 
 double Trajectory::getFinalJerk() const
 {
@@ -244,12 +260,14 @@ double Trajectory::getFinalJerk() const
   return res;
 }
 
+
 double Trajectory::getMinSpeed() const
 {
   assert(_dt>0);
   assert(_speed.size());
   return _min_speed;
 }
+
 
 double Trajectory::getMaxSpeed() const
 {
@@ -258,12 +276,14 @@ double Trajectory::getMaxSpeed() const
   return _max_speed;
 }
 
+
 double Trajectory::getMinAcceleration() const
 {
   assert(_dt>0);
   assert(_acceleration.size());
   return _min_acceleration;
 }
+
 
 double Trajectory::getMaxAcceleration() const
 {
@@ -272,6 +292,7 @@ double Trajectory::getMaxAcceleration() const
   return _max_acceleration;
 }
 
+
 double Trajectory::getMinJerk() const
 {
   assert(_dt>0);
@@ -279,12 +300,14 @@ double Trajectory::getMinJerk() const
   return _min_jerk;
 }
 
+
 double Trajectory::getMaxJerk() const
 {
   assert(_dt>0);
   assert(_jerk.size());
   return _max_jerk;
 }
+
 
 double Trajectory::getTotalSquaredJerk() const
 {
@@ -294,7 +317,6 @@ double Trajectory::getTotalSquaredJerk() const
     res += _jerk[i] * _jerk[i];
   return res;
 }
-
 
 
 double Trajectory::getCost(double target_time, double target_distance, double target_speed,
@@ -330,7 +352,6 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += total_time_weight * total_time_cost;
   _cost_dump_str += "total time cost: "+to_string(total_time_cost)+"\n";
 
-
   // Penalise negative speeds
   double min_speed_cost = MIN_COST;
   if (_min_speed < 0.0)
@@ -361,7 +382,6 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += final_speed_weight * final_speed_cost;
   _cost_dump_str += "final speed cost: "+to_string(final_speed_cost)+" ("+to_string(final_speed)+")\n";
 
-
   // penalize trajectories with high max acceleration
   double max_acceleration_cost = MIN_COST;
   if (fabs(getMaxAcceleration()) > max_acceleration)
@@ -380,7 +400,6 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   total_cost += avg_acceleration_weight * avg_acceleration_cost;
   _cost_dump_str += "avg acceleration cost: "+to_string(avg_acceleration_cost)+" ("+to_string(acceleration_per_second)+")\n";
 
-
   // penalize trajectories with high max jerk
   double max_jerk_cost = MIN_COST;
   if (fabs(getMaxJerk()) > max_jerk)
@@ -398,60 +417,6 @@ double Trajectory::getCost(double target_time, double target_distance, double ta
   double avg_jerk_weight = 1.0;
   total_cost += avg_jerk_weight * avg_jerk_cost;
   _cost_dump_str += "avg jerk cost: "+to_string(avg_jerk_cost)+" ("+to_string(jerk_per_second)+")\n";
-
-
-
-//  // Binary cost function which penalizes collisions.
-//  double collision_cost = MIN_COST;
-//  // Penalize getting close to other vehicles.
-//  double buffer_cost = MIN_COST;
-//  int n = sf.size();
-//  const double check_dt = 0.1;
-//  const double CAR_LENGTH = 5.0;
-//  const double LANE_WIDTH = 4.0;
-//  const double BUFFER_LENGTH = 10.0;
-//  // loop over other cars
-//  for (int i=0; i<n; i++)
-//  {
-//    const Car& c = sf.getCar(i);
-//    double x0 = c.getX();
-//    double y0 = c.getY();
-//    double yaw = c.getYaw();
-//    double v0 = c.getSpeed();
-//    auto fr = route.get_frenet(x0, y0, yaw);
-//    int step_size = floor(check_dt / _dt);
-//    // loop over time
-//    for (int j=1; j<getSize(); j+=step_size)
-//    {
-//      double s0 = fr[0];
-//      double s1 = s0 + (j*_dt) * v0; // project other car location at new time
-//      double d0 = fr[1];
-//      double d1 = d0;
-//      auto xy_other = route.get_XY(s1, d1);
-//      double x_ego = _x_vals[i];
-//      double y_ego = _y_vals[i];
-//      auto fr_ego = route.get_frenet(x_ego, y_ego, _heading[i-1]);
-//      double s_dist = s1 - fr_ego[0]; // distance to them. if they are in front, then positive
-//      double d_dist = d1 - fr_ego[1];
-//
-//      // collision
-//      if (s_dist>0 && s_dist <= CAR_LENGTH && fabs(d_dist) <= LANE_WIDTH)
-//        collision_cost = MAX_COST;
-//      // buffer
-//      if (s_dist>0 && fabs(d_dist)<= LANE_WIDTH)
-//        buffer_cost += logistic( s_dist / CAR_LENGTH);
-//    }
-//  }
-//
-//  double collision_weight = 1.0;
-//  total_cost += collision_weight * collision_cost;
-//  _cost_dump_str += "collision cost: "+to_string(collision_cost)+" \n";
-//
-//  double buffer_weight = 1.0;
-//  total_cost += avg_jerk_weight * avg_jerk_cost;
-//  _cost_dump_str += "buffer cost: "+to_string(buffer_cost)+" \n";
-
-
 
   _cost_dump_str += "TOTAL cost: "+to_string(total_cost)+"\n";
   return total_cost;

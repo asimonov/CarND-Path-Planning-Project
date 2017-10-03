@@ -63,12 +63,7 @@ JerkMinimizingPolynomial::JerkMinimizingPolynomial(std::vector<double> start_con
   b << _end_cond[0] - (_start_cond[0] + _start_cond[1]*T + 0.5*_start_cond[2]*T2),
        _end_cond[1] - (_start_cond[1] + _start_cond[2]*T),
        _end_cond[2] -  _start_cond[2];
-//std::cout << b << endl;
 
-  /*
-  Eigen::VectorXd x = A.colPivHouseholderQr().solve(b);
-  _coeff = {_start_cond[0], _start_cond[1], 0.5*_start_cond[2], x[0], x[1], x[2]};
-  */
   Eigen::MatrixXd Ai = A.inverse();
 
   Eigen::MatrixXd C = Ai*b;
@@ -79,8 +74,8 @@ JerkMinimizingPolynomial::JerkMinimizingPolynomial(std::vector<double> start_con
     result.push_back(C.data()[i]);
   }
   _coeff = result;
-
 }
+
 
 double JerkMinimizingPolynomial::eval(double t) const {
   double t2 = t*t;

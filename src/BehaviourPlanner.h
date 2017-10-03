@@ -11,7 +11,7 @@
 // Behaviour planner for highway driving.
 // Assumes we have highway with a number of lanes
 // and all cars move along them in same direction
-// with various speeds/accelerations.
+// with various speeds.
 
 
 class BehaviourPlanner {
@@ -27,7 +27,6 @@ private:
     double cyclic_dist(double s);
 
     int               _num_lanes;
-    //double            _lane_width;
     std::vector<Car>&  _other_cars;
     Car               _ego;
     const double      _dt; // when predicting, what discretisation frequency to use?

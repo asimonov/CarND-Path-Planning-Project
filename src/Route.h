@@ -9,6 +9,7 @@
 #include <vector>
 #include "spline.h"
 
+// route planned, sequence of waypoints to follow
 class Route {
 public:
     Route();

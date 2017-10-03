@@ -59,13 +59,10 @@ public:
     // updates internal state with trajectory spaced at dt up till T
     void generate_predictions(double T, double dt);
     const predictions_type& get_predictions() const;
-    // calculates cost function of internal trajectory given trajectories of other cars
-    //double calculate_cost(const std::vector<Car>& other_cars);
     // get planned time horizon
     double get_target_time() const;
     int    get_target_lane() const;
 
-    //void setAcceleration(double a) {_acceleration=a;}
     void dumpToStream(const std::string& filename) const;
 
     // translate x,y in car coordinates into global coordinates (given car position on the map)

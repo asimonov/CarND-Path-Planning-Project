@@ -260,17 +260,10 @@ double BehaviourPlanner::calculate_cost(const Car& ego) {
   total_cost += COMFORT * max_acceleration_cost;
 
   // maximize average speed
-  // TODO handle s wrapping around the track to zero
   double avg_speed = maneuvre_distance / maneuvre_time;
   double SPEED_SENSITIVITY = 5;
   double avg_speed_cost = 1.0 - logistic((avg_speed - ego.getTargetSpeed())/SPEED_SENSITIVITY);
   total_cost += EFFICIENCY * avg_speed_cost;
-
-  // penalise deceleration
-//  double neg_acceleration_cost = 0.0;
-//  if (ego.getAcceleration() < 0)
-//    neg_acceleration_cost = logistic(fabs(ego.getAcceleration()) / (ego.getMaxAcceleration()/2.0));
-//  total_cost += EFFICIENCY * neg_acceleration_cost;
 
   // penalise big acceleration/deceleration
   double acceleration_cost = logistic(pow(ego.getAcceleration() / (ego.getMaxAcceleration()/2.5), 2));
@@ -280,7 +273,7 @@ double BehaviourPlanner::calculate_cost(const Car& ego) {
   double maneuvre_time_cost = logistic(maneuvre_time / 3.0);
   total_cost += EFFICIENCY * maneuvre_time_cost;
 
-  // now if all is clear then for efficiency we want to keep lane rather than prepare to change it
+  // now if all is clear then for efficiency we want to keep lane rather than prepare/to change it
   if (ego.getState().first == PREPARE_CHANGE_LANE)
     total_cost *= 1.05; // make it 5 percent more costly to PREPARE_CHANGE_LANE to favour KEEP_LANE provided all else is equal
   if (ego.getState().first == CHANGE_LANE)
