@@ -153,7 +153,7 @@ double BehaviourPlanner::calculate_cost(const Car& ego) {
         double other_s = other_predictions[i].second;
         double abs_distance = cyclic_dist(fabs(ego_s - other_s));
 
-        const int NUM_BUFFER_LENGTHS = 5;
+        const int NUM_BUFFER_LENGTHS = 4;
 
         if (abs_distance < ego.getLength()) {
           if (initial_distance>0)

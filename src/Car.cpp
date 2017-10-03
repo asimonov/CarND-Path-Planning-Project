@@ -117,7 +117,7 @@ double Car::maxAccelerationForLane(const std::vector<Car>& other_cars, double ma
     }
 
   // adjust our acceleration based on leading vehicle
-  int NUM_LENGTHS_BEHIND_TARGET = 4;
+  int NUM_LENGTHS_BEHIND_TARGET = 3;
   if (leading_s_now < 1e+10)// && acc_sign>0)
   {
     double delta_s = (car.getS() - NUM_LENGTHS_BEHIND_TARGET*LENGTH) - _s;
