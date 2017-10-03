@@ -13,7 +13,7 @@ It is given localisation data about the
 of the car and sensor fusion data about other vehicles
   
 ## Simulator
-You can download the simulator from [here](https://github.com/udacity/self-driving-car-sim/releases)
+You can download the simulator from [here](https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2)
 
 ## Goals
 The goal is to safely navigate around a virtual highway 
@@ -105,6 +105,6 @@ not passed yet since last planning iteration.
 
 ## Resulting Video
 
-Here is an example video (speed up 4 times) of how the planner performs:
+Here is an example video (sped-up 4 times) of how the planner performs:
 
 [![Video result](video_snapshot.png)](https://youtu.be/4v8bozDTjok)
