@@ -6,7 +6,7 @@ This is a demo of path planning for autonomous vehicles for
 highway driving. The driver program has to drive the car in simulator
 around circular highway track. It is given waypoints but has to adapt
 the speed/ to follow the track, avoid crashing to other vehicles
-and plan 'comfortable' paths wihtin reasonable limits of acceleration
+and plan 'comfortable' paths within reasonable limits of acceleration
 and jerk. 
 
 It is given localisation data about the 
@@ -103,8 +103,37 @@ not passed yet since last planning iteration.
     git checkout e94b6e1
     ```
 
-## Resulting Video
+## Results Discussion
 
 Here is an example video (sped-up 4 times) of how the planner performs:
 
 [![Video result](video_snapshot.png)](https://youtu.be/4v8bozDTjok)
+
+The implementation uses cubic splines to smooth the path represented by
+the list of waypoints. 
+
+The behaviour planner uses cost function based
+selection approach looking at time horizons from 1 to 5 seconds into
+the future, extrapolating positions of other cars, chooses acceleration
+and lane to better match goals.
+
+After behaviour planner has choosen a high-level maneuvre (keep lane,
+prepare to change lane, change lane) the trajectory generation module
+does a quick sampling based search to choose optimal trajectory in time
+which match the goals described above.
+
+In the video we see that the car can complete a few laps fully autonomously
+successfully avoiding other vehicles and trying to stay close to about
+44 miles per hour speed.
+
+## Ways to Improve
+
+What can be added is ability to re-plan from earlier time horizon.
+At the moment the existing trajectory is extended.
+But because it relies on historical assumptions from few seconds ago
+it may no longer be relevant to developing road situation.
+This is especially obvious when other cars change speed.
+Or if other cars initiate lane changing maneuvres which conflict
+with pre-planned trajectory.
+
+
