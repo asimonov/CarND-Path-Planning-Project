@@ -19,9 +19,9 @@ using json = nlohmann::json;
 
 
 // global variables.
-// Route (set of waypoints and code to spline them) is initialised in main. used in onMessage later.
+// Route -- set of waypoints and code to spline them. initialised in main. used in onMessage later.
 Route                    g_route;
-// planned state and final planned s coordinate are saved in onMessage after each planning cycle
+// planned state and final planned s coordinate. saved in onMessage after each planning cycle
 std::pair<Maneuvre, int> g_planned_state;
 std::vector<double>      g_final_frenet = {-1000000,0};
 
@@ -46,7 +46,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
     if (b1 != string::npos && b2 != string::npos) {
       s = data_s.substr(b1, b2 - b1 + 2);
     }
-    if (s != "") {
+    if (s != "" && found_null==std::string::npos) {
       auto j = json::parse(s);
 
       string event = j[0].get<string>();
@@ -88,7 +88,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 #endif
 
         // planning constants
-        const double dt_s = 0.02; // discretisation time length, in seconds
+        const double dt_s = 0.02; // simulator's discretisation time length, in seconds
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
@@ -99,7 +99,9 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         // define existing trajectory
         Trajectory in_traj(previous_path_x, previous_path_y, dt_s);
         if (g_final_frenet[0]>-100)
-          in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]); // hack to avoid jerks from xy->frenet->xy imperfect conversion
+          // we planned trajectory before. now need to extend it. but avoid jerk at the extension point
+          // hence this hack to restore our previous frenet coordinates to avoid imperfect xy->frenet->xy conversion
+          in_traj.storeFinalFrenet(g_final_frenet[0], g_final_frenet[1]);
         else
           in_traj.storeFinalFrenet(car_s_sim, car_d_sim); // just use what came from simulator for first iteration
 
@@ -127,10 +129,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           car_yaw = in_traj.getFinalYaw();
           car_speed = in_traj.getFinalSpeed();
           car_acceleration = in_traj.getFinalAcceleration();
-          // what it should be. BUT we have saved it, so just restore
-//          auto fr = g_route.get_frenet(car_x, car_y, car_yaw);
-//          car_s = fr[0];
-//          car_d = fr[1];
           car_s_mine = g_final_frenet[0];
           car_d_mine = g_final_frenet[1];
         }
@@ -143,19 +141,17 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 
         // process sensor fusion and define all other cars on the road
         vector<Car> other_cars;
-        for (int i = 0; i < sensor_fusion.size(); i++) {
-          int id = sensor_fusion[i][0];
+        for (auto it = sensor_fusion.begin(); it != sensor_fusion.end(); it++) {
+          int id = it.value()[0];
           assert(id!=Car::getEgoID());
-          double x = sensor_fusion[i][1];
-          double y = sensor_fusion[i][2];
-
-          double vx = sensor_fusion[i][3];
-          double vy = sensor_fusion[i][4];
+          double x = it.value()[1];
+          double y = it.value()[2];
+          double vx = it.value()[3];
+          double vy = it.value()[4];
           double v = sqrt(vx*vx+vy*vy); // assuming speed magnitude is all in direction of s, none in d
           double yaw = atan2(vy,vx);
-
-          double s = sensor_fusion[i][5];
-          double d = sensor_fusion[i][6];
+          double s = it.value()[5];
+          double d = it.value()[6];
           auto fr = g_route.get_frenet(x, y, yaw);
           s = fr[0];
           d = fr[1];
@@ -177,9 +173,9 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           planned_distance -= g_route.get_max_s();
         if (planned_distance < 0)
           planned_distance += g_route.get_max_s();
-        double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         Trajectory out_tr = in_traj;
 
+        double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         if ( planned_distance < re_planning_s_horizon) {
           // plan maneuvre using behaviour planner
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
@@ -238,8 +234,6 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
                << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
                << endl;
         }
-
-
 
 
 
