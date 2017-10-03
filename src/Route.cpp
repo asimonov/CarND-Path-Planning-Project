@@ -137,9 +137,11 @@ int Route::next_waypoint(double x, double y, double yaw) const {
 }
 
 
-// internal version of get_frenet
-std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
+// Transform from Cartesian x,y coordinates to Frenet s,d coordinates
+std::vector<double> Route::get_frenet(double x, double y, double yaw) const
 {
+  int next_wp = next_waypoint(x, y, yaw);
+
   int prev_wp;
   prev_wp = cyclic_index(next_wp - 1);
 
@@ -172,14 +174,6 @@ std::vector<double> Route::get_frenet2(double x, double y, int next_wp) const
     frenet_s += get_max_s();
 
   return {frenet_s, frenet_d};
-}
-
-
-// Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-std::vector<double> Route::get_frenet(double x, double y, double yaw) const
-{
-  int next_wp = next_waypoint(x, y, yaw);
-  return get_frenet2(x, y, next_wp);
 }
 
 
