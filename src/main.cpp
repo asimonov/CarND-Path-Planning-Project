@@ -92,7 +92,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         const int    num_lanes = 3; // number of lanes we have
         const double lane_width = 4.0; // highway lane width, in meters
         const double max_speed = mph2ms(50.0); // max speed in meter/second
-        const double target_speed = mph2ms(46.0); // target speed in meter/second
+        const double target_speed = mph2ms(45.0); // target speed in meter/second
         const double max_acceleration = 10.0; // maximum acceleration, in m/s2
         const double max_jerk = 10.0; // maximum jerk, in m/s3
 
@@ -178,6 +178,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
         double re_planning_s_horizon = 30.0; // when do we extend the planned route?
         if ( planned_distance < re_planning_s_horizon) {
           // plan maneuvre using behaviour planner
+          auto start_ms = ts_ms();
           BehaviourPlanner bp(num_lanes, lane_width, ego, other_cars);
           const double time_horizon_s = 5.0; // max planning time horizon, in seconds
           Car ego_plan = bp.plan(time_horizon_s);
@@ -224,6 +225,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
 #endif
 
           g_planned_state = new_state;
+          auto finish_ms = ts_ms();
 
           // sleep for 100 ms, to match real cars latency
           this_thread::sleep_for(chrono::milliseconds(100));
@@ -232,6 +234,7 @@ void onMessage(uWS::WebSocket<uWS::SERVER> ws,
           cout << ts_ms_str() << "OUT n="<<setw(5)<<n
                << " x_s="<<setw(8)<<out_tr.getX()[0] <<" y_s="<<setw(8)<<out_tr.getY()[0]
                << " x_f="<<out_tr.getX()[n-1] << " y_f="<<out_tr.getY()[n-1]
+               << " planned_in_ms=" << (finish_ms - start_ms)
                << endl;
         }
 
